@@ -1,0 +1,4 @@
+*.pyc
+/mnist
+/output
+/.ipynb_checkpoints
