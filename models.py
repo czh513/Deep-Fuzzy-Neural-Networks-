@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
+import math
 
 
 class ReLog(nn.Module):
@@ -15,11 +16,19 @@ class ReLog(nn.Module):
     """
     __constants__ = []
 
-    def __init__(self):
+    def __init__(self, n=10, inplace=False):
+        assert(n > 1)
         super(ReLog, self).__init__()
+        self.n = n
+        self.inplace = inplace
 
     def forward(self, input):
-        return torch.log10(F.relu(input) + 0.01) + 2
+        # can't have two subsequent in-place operations, otherwise will get error:
+        # "RuntimeError: one of the variables needed for gradient computation has been modified by an inplace operation"
+        return torch.log(F.relu(input, self.inplace) + 1/self.n) / math.log(self.n) + 1
+
+    def extra_repr(self):
+        return 'n=%.2f' % (self.n)
 
     
 class FoldingMaxout(nn.Module):
@@ -50,32 +59,33 @@ class FoldingMaxout(nn.Module):
 class CNN(nn.Module):
 
     def __init__(self, use_relog=False, use_maxout=None, max_folding_factor=4, min_folding_factor=1,
-                 conv1_out_channels=16, conv2_out_channels=32, use_sigmoid_out=False):
+                 conv1_out_channels=16, conv2_out_channels=32, use_sigmoid_out=False, dropout_prob=0.15):
         super(CNN, self).__init__()
         self.use_maxout = use_maxout
         self.use_relog = use_relog
         self.max_folding_factor = max_folding_factor
         self.min_folding_factor = min_folding_factor
-        self.folding_factor = max_folding_factor * min_folding_factor
+        self.folding_factor = max_folding_factor * min_folding_factor if self.use_maxout else 1
         self.conv1_out_channels = conv1_out_channels
         self.conv2_out_channels = conv2_out_channels
         self.use_sigmoid_out = use_sigmoid_out
-        
-        activation_func = ReLog if self.use_relog else nn.ReLU
-        conv1_modules = self.build_conv1() + ( # input shape (1, 28, 28)
-            activation_func(),                 # activation
-            nn.MaxPool2d(kernel_size=2),       # choose max value in 2x2 area, output shape (16, 14, 14)
-        )
+        self.n_classes = 10
+        self.activation_func = ReLog if self.use_relog else nn.ReLU
+        self.dropout_prob = dropout_prob
+        self.weights = []
+        self.bias = []
+
+        conv1_modules = self.build_conv1() + [nn.MaxPool2d(kernel_size=2)]
         self.conv1 = nn.Sequential(*conv1_modules)
-        conv2_modules = self.build_conv2() + ( # input shape (16, 14, 14)
-            activation_func(),                 # activation
-            nn.MaxPool2d(2),                   # output shape (32, 7, 7)
-        )
+        conv2_modules = self.build_conv2() + [nn.MaxPool2d(2)]
         self.conv2 = nn.Sequential(*conv2_modules)
         self.out = self.build_output()
 
+    def dropout(self):
+        return nn.Dropout(self.dropout_prob, inplace=True)
+
     def build_conv1(self):
-        actual_out_channels = self.conv1_out_channels * (self.folding_factor if self.use_maxout else 1)
+        actual_out_channels = self.conv1_out_channels * self.folding_factor
         cnn = nn.Conv2d(
                     in_channels=1,              # input height
                     out_channels=actual_out_channels, # n_filters
@@ -83,38 +93,109 @@ class CNN(nn.Module):
                     stride=1,                   # filter movement/step
                     padding=2,                  
                 )
-        return self.append_maxout(cnn)
+        self.weights.append(cnn.weight)
+        self.bias.append(cnn.bias)
+        return self.wrap_linear(cnn)
         
     def build_conv2(self):
-        actual_out_channels = self.conv2_out_channels * (self.folding_factor if self.use_maxout else 1)
+        actual_out_channels = self.conv2_out_channels * self.folding_factor
         cnn = nn.Conv2d(self.conv1_out_channels, actual_out_channels, 5, 1, 2)
-        return self.append_maxout(cnn)
+        self.weights.append(cnn.weight)
+        self.bias.append(cnn.bias)
+        return self.wrap_linear(cnn)
         
     def build_output(self):
-        n_classes = 10 * (self.folding_factor if self.use_maxout else 1)
-        out = nn.Linear(self.conv2_out_channels * 7 * 7, n_classes)
-        modules = self.append_maxout(out)
+        out = nn.Linear(self.conv2_out_channels * 7 * 7, self.n_classes * self.folding_factor)
+        self.weights.append(out.weight)
+        self.bias.append(out.bias)
+        modules = self.wrap_linear(out, activ=False)
         if self.use_sigmoid_out:
             modules += (nn.Sigmoid(),)
         return nn.Sequential(*modules)
 
-    def append_maxout(self, cnn):
+    def wrap_linear(self, linear, activ=True):
+        assert not isinstance(linear, list)
+        modules = [linear]
+        if self.dropout_prob > 0:
+            modules.insert(0, self.dropout())
         if self.use_maxout == 'max':
             maxout = FoldingMaxout(self.folding_factor, dim=1)
-            return (cnn, maxout)                
+            modules.append(maxout)                
         elif self.use_maxout == 'min':
             minout = FoldingMaxout(self.folding_factor, dim=1, use_min=True)
-            return (cnn, minout)                
+            modules.append(minout)                
         elif self.use_maxout == 'minmax':
             minout = FoldingMaxout(self.min_folding_factor, dim=1, use_min=True)
             maxout = FoldingMaxout(self.max_folding_factor, dim=1)
-            return (cnn, minout, maxout)        
-        else:
-            return (cnn,)                       
-        
+            modules.extend([minout, maxout])
+        if activ:
+            modules.append(self.activation_func(inplace=True))
+        return modules
+
     def forward(self, x):
         x = self.conv1(x)
         x = self.conv2(x)
         x = x.view(x.size(0), -1) # flatten the output of conv2 to (batch_size, 32 * 7 * 7)
         output = self.out(x)
         return output, x # return last layer for visualization
+
+
+cfg = {
+    'VGG11': [64, 'M', 128, 'M', 256, 256, 'M', 512, 512, 'M', 512, 512, 'M'],
+    'VGG13': [64, 64, 'M', 128, 128, 'M', 256, 256, 'M', 512, 512, 'M', 512, 512, 'M'],
+    'VGG16': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'M', 512, 512, 512, 'M', 512, 512, 512, 'M'],
+    'VGG19': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 256, 'M', 512, 512, 512, 512, 'M', 512, 512, 512, 512, 'M'],
+}
+
+class VGG(nn.Module):
+    def __init__(self, vgg_name="VGG11", use_relog=False, relog_n=10, use_maxout=None, max_folding_factor=4, 
+                 min_folding_factor=1, use_sigmoid_out=False, dropout_prob=0):
+        super(VGG, self).__init__()
+        self.use_maxout = use_maxout
+        self.use_relog = use_relog
+        self.relog_n = relog_n
+        self.max_folding_factor = max_folding_factor
+        self.min_folding_factor = min_folding_factor
+        self.folding_factor = max_folding_factor * min_folding_factor if self.use_maxout else 1
+        self.use_sigmoid_out = use_sigmoid_out
+        self.n_classes = 10
+        self.activation_func = (lambda: ReLog(relog_n)) if self.use_relog else nn.ReLU
+        self.dropout_prob = dropout_prob
+        self.weights = []
+        self.bias = []
+        self.features = self._make_layers(cfg[vgg_name])
+        self.classifier = nn.Linear(512, 10)
+
+    def forward(self, x):
+        out = self.features(x)
+        out = out.view(out.size(0), -1)
+        out = self.classifier(out)
+        if self.use_sigmoid_out:
+            out = nn.Sigmoid()(out)
+        return out
+
+    def _make_layers(self, cfg):
+        layers = []
+        in_channels = 3
+        for x in cfg:
+            if x == 'M':
+                layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
+            else:
+                if self.dropout_prob and self.dropout_prob > 0:
+                    layers += [nn.Dropout(self.dropout_prob)]
+                layers += [nn.Conv2d(in_channels, x * self.folding_factor, kernel_size=3, padding=1),
+                           nn.BatchNorm2d(x * self.folding_factor)]
+                if self.use_maxout == 'max':
+                    layers += [FoldingMaxout(self.max_folding_factor, dim=1)]
+                elif self.use_maxout == 'min':
+                    layers += [FoldingMaxout(self.min_folding_factor, dim=1, use_min=True)]
+                elif self.use_maxout == 'minmax':
+                    layers += [
+                        FoldingMaxout(self.min_folding_factor, dim=1, use_min=True),
+                        FoldingMaxout(self.max_folding_factor, dim=1)
+                    ]
+                layers += [self.activation_func(inplace=True)]
+                in_channels = x
+        layers += [nn.AvgPool2d(kernel_size=1, stride=1)]
+        return nn.Sequential(*layers)
+

@@ -84,5 +84,38 @@ into:
 The results on adversarial examples increased to >60%, without other tricks :-O
 This is huge... I will definitely write a paper!
 
+Brought notebooks to Google colab to scale up experiments using GPUs. 
+Things that took 20 min now finish in 45 sec! Having trouble 
+with importing python files though.
+
+Adjusted the relog formula a bit:
+
+    y = log100(relu(x)+0.01)+1
+
+The result with all the tricks except "strictening" is 90%. On adversarial
+attack (fast gradient). Insane! Did I make a mistake somewhere?
+
+Attempted my hand with [JSMA](jsma.ipynb) but got some TensorFlow/PyTorch
+mismatch problem.
+
+Had a big dose of literature. Added 15+ papers to "adversarial-examples"
+folder in my Mendeley library.
+
+C&W is a much stronger attack. My best performance is with 
+`cnn-mnist-relog-minmaxout_4_2-sigmoid-out-strictening_0.1`
+which is still fooled for 50% cases. Interesting that "strictening"
+improves the robustness against C&W whereas it didn't have much
+effect on FGSM. 
+
+Is "tightening" a better name? Or logic regularization?
+
+# Fri 11 Oct
+
+
+
+TODO: polishing the C&W attack code
+TODO: run one transfer attack and finish there
+
+TODO: compare my "strictening" L1 and L2 with normal L1 and L2
 
 

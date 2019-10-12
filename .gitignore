@@ -1,4 +1,6 @@
 *.pyc
 /mnist
+/cifar10
+/data
 /output
 /.ipynb_checkpoints
