@@ -107,32 +107,31 @@ class TrainingService(object):
 
 class CIFAR10_TrainingService(object):
 
-    def __init__(self, home_dir):
+    def __init__(self, home_dir, normalize_data):
         self.home_dir = home_dir
-        self.prepare_data()
+        self.prepare_data(normalize_data)
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         print("Using device: %s" % self.device)
 
-    def prepare_data(self):
+    def prepare_data(self, normalize_data):
         # Data
         print('==> Preparing data..')
+        cifar_stats = ((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
         transform_train = torchvision.transforms.Compose([
                 torchvision.transforms.RandomCrop(32, padding=4),
                 torchvision.transforms.RandomHorizontalFlip(),
                 torchvision.transforms.ToTensor(),
-                torchvision.transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-        ])
+        ] + ([torchvision.transforms.Normalize(*cifar_stats)] if normalize_data else []))
         transform_test = torchvision.transforms.Compose([
                 torchvision.transforms.ToTensor(),
-                torchvision.transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-        ])
+        ] + ([torchvision.transforms.Normalize(*cifar_stats)] if normalize_data else []))
         trainset = torchvision.datasets.CIFAR10(root='./cifar10', train=True, download=True, transform=transform_train)
         self.trainloader = torch.utils.data.DataLoader(trainset, batch_size=128, shuffle=True, num_workers=2)
         testset = torchvision.datasets.CIFAR10(root='./cifar10', train=False, download=True, transform=transform_test)
         self.testloader = torch.utils.data.DataLoader(testset, batch_size=100, shuffle=False, num_workers=2)
 
     # Training
-    def train(self, net, epoch):
+    def train(self, net, epoch, out_path):
         print('\nEpoch: %d' % epoch)
         net.train()
         train_loss = 0
@@ -140,14 +139,16 @@ class CIFAR10_TrainingService(object):
         total = 0
         for batch_idx, (inputs, targets) in enumerate(self.trainloader):
             inputs, targets = inputs.to(self.device), targets.to(self.device)
-            if self.use_sigmoid_out:
-                targets = one_hot(targets, num_classes=10).float()
             self.optimizer.zero_grad()
             outputs = net(inputs)
-            loss = self.criterion(outputs, targets)
+            if self.use_sigmoid_out:
+                loss_targets = one_hot(targets, num_classes=10).float()
+            else:
+                loss_targets = targets
+            loss = self.criterion(outputs, loss_targets)
             if self.strictening is not None and self.strictening > 0:
-                weight_reg = sum(w.abs().mean() for w in cnn.weights)
-                bias_reg = sum(b.mean() for b in cnn.bias) # notice: no abs()
+                weight_reg = sum(w.abs().mean() for w in net.weights)
+                bias_reg = sum(b.mean() for b in net.bias) # notice: no abs()
                 loss += self.strictening * (weight_reg + bias_reg)
             loss.backward()
             self.optimizer.step()
@@ -159,6 +160,9 @@ class CIFAR10_TrainingService(object):
             if batch_idx % 150 == 0:
                 print(batch_idx, '/', len(self.trainloader), ': Loss: %.3f | Acc: %.3f%% (%d/%d)'
                     % (train_loss/(batch_idx+1), 100.*correct/total, correct, total))
+        if out_path:
+            torch.save(net, out_path)
+            print('Model saved to %s' % out_path)
 
     def test(self, net, epoch):
         global best_acc
@@ -170,7 +174,12 @@ class CIFAR10_TrainingService(object):
             for batch_idx, (inputs, targets) in enumerate(self.testloader):
                 inputs, targets = inputs.to(self.device), targets.to(self.device)
                 outputs = net(inputs)
-                loss = self.criterion(outputs, targets)
+
+                if self.use_sigmoid_out:
+                    loss_targets = one_hot(targets, num_classes=10).float()
+                else:
+                    loss_targets = targets
+                loss = self.criterion(outputs, loss_targets)
 
                 test_loss += loss.item()
                 _, predicted = outputs.max(1)
@@ -180,34 +189,28 @@ class CIFAR10_TrainingService(object):
         print('Test eval: Loss: %.3f | Acc: %.3f%% (%d/%d)'
             % (test_loss/(batch_idx+1), 100.*correct/total, correct, total))
 
-    def build_and_train(self, name=None, vgg_name="VGG11", strictening=None, **kwargs):
+    def build_and_train(self, name=None, strictening=None, **kwargs):
         self.use_sigmoid_out = kwargs.get('use_sigmoid_out', False)
+        self.use_relog = kwargs.get('use_relog', False)
+        self.vgg_name = kwargs.get('vgg_name', 'VGG11')
         self.strictening = strictening
         torch.manual_seed(3582) # reproducible
         net = VGG(**kwargs)
+        print(net)
         net = net.to(self.device)
-        if self.device == 'cuda':
-            net = torch.nn.DataParallel(net)
-            cudnn.benchmark = True 
+        out_path = os.path.join(self.home_dir, 'output', '%s.pkl' % name) if name else None
         self.optimizer = optim.SGD(net.parameters(), lr=0.1, momentum=0.9)
         self.criterion = nn.MSELoss() if self.use_sigmoid_out else nn.CrossEntropyLoss()
         for epoch in range(15):
-            self.train(net, epoch)
+            # since it takes a looong time to train, we'll save every epoch
+            self.train(net, epoch, out_path) 
             self.test(net, epoch)
         self.optimizer = optim.SGD(net.parameters(), lr=0.01, momentum=0.9)
         for epoch in range(15, 20):
-            self.train(net, epoch)
+            self.train(net, epoch, out_path)
             self.test(net, epoch)
-        self.optimizer = optim.SGD(net.parameters(), lr=0.01, momentum=0.9)
-        for epoch in range(20, 25):
-            self.train(net, epoch)
-            self.test(net, epoch)
-        if name:
-            out_path = os.path.join(self.home_dir, 'output', '%s.pkl' % name)
-            torch.save(net, out_path)
-            print('Model saved to %s' % out_path)
 
 if __name__ == "__main__":
     # test the code
-    ts = CIFAR10_TrainingService('.')
-    ts.build_and_train(use_maxout='max')
+    ts = CIFAR10_TrainingService('.', normalize_data=False)
+    ts.build_and_train(vgg_name='VGG11', use_maxout='max', use_relog=True, relog_n=5)

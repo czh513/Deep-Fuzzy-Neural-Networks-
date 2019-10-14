@@ -111,11 +111,45 @@ Is "tightening" a better name? Or logic regularization?
 
 # Fri 11 Oct
 
+Researching CIFAR-10. This is the first time that I read about it
+in detail.
 
+# Sat 12 Oct
+
+Used a day to find [a good implementation](https://github.com/kuangliu/pytorch-cifar)
+and adapt it to my need. Preliminary results seem to support my story
+but it's running too slowly and Google Colab keeps breaking connection
+to data storage.
+
+Running [this notebook](https://colab.research.google.com/drive/1Kh0sTuEHXqNjGhEMBrOIHlxWK3UUWFRw#scrollTo=WKJDICIZlb9K&uniqifier=3)
+to train some CIFAR models and using
+[this one](https://colab.research.google.com/drive/1BXsR0s524p9lLeAvXwAAwgNm0SgJ4hOp#scrollTo=XH6gaV34Na-M)
+to evaluate them against attacks.
+
+State-of-the-art for CIFAR-10: https://paperswithcode.com/paper/adversarial-defense-by-restricting-the-hidden
 
 TODO: polishing the C&W attack code
 TODO: run one transfer attack and finish there
 
 TODO: compare my "strictening" L1 and L2 with normal L1 and L2
 
+# Sun 13 Oct
 
+<s>Found out</s> why I got low results for ReLog on CIFAR: the initialization is bad so 
+my models weren't learning. Spent an afternoon working on a new initialization formula
+but didn't get any luck...
+
+Found out why ReLog didn't work with CIFAR: negative numbers. 
+With ReLog, positive weights encode positive atoms (found --> add score)
+and negative ones encode negative atoms (found --> minus score).
+But because of normalization to Gaussian distribution, the absence of a color
+(which is used to be zero) becomes a strongly negative number. Meeting with this negative
+number leads to a decrease in the final score whereas it should have had no effect.
+Middle-strong color which should have mild effect now has no effect so the relationship
+is all messed up. It has nothing to do with initialization (although a custom-made one might
+perform better)!
+
+Not sure how ReLU performs alright (even better) with negative numbers...
+
+Everything seems to be working now, except that I can't wait long enough to see how 
+models perform. It's time to get some GPU...?
