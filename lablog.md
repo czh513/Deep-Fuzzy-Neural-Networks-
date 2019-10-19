@@ -153,3 +153,40 @@ Not sure how ReLU performs alright (even better) with negative numbers...
 
 Everything seems to be working now, except that I can't wait long enough to see how 
 models perform. It's time to get some GPU...?
+
+# Mon 14 Oct
+
+Made this image to illustrate the advantage of min/max (and/or):
+
+![](images/relu-min-max.png)
+
+# Tue 15 Oct
+
+Realized that I could apply the kernel trick to filters to improve
+the fit to eliptical point clouds. It does decrease the success rate
+of C&W attack on MNIST from 58% (model=`cnn-mnist-relog-minmaxout_4_2-sigmoid-out-strictening_1.pkl`)
+to 51% (model=`cnn-mnist-relog-kernel-minmaxout_4_2-sigmoid-out.pkl`).
+However, two problems arise:
+
+1. the regularization formula for linear model doesn't apply any more,
+using it will actually make models _less_ robust
+2. the loss blows up to infinity. Replacing Kaiming with dynamic 
+initialization helps with the first epoch but the problem persists. 
+Gradient clipping doesn't help. Perhaps this problem is related to 
+the first problem...
+
+ReLog helps with reigning in the loss, after adding it, the loss doesn't
+explode any more but the deep model still struggle to learn...
+
+# Sat 19 Oct
+
+No, actually a quadratic kernel didn't have any negative effect. I got new
+best result with it:
+
+    Evaluating model: /content/gdrive/My Drive/Colab Notebooks/newlogic/output/cnn-mnist-relog-kernel-minmaxout_4_2-sigmoid_out-max_margin.pkl
+
+    [INFO 2019-10-19 13:59:40,200 cleverhans] Constructing new graph for attack CarliniWagnerL2
+
+    Accuracy: 0.560
+
+I must have implemented something incorrectly before. 

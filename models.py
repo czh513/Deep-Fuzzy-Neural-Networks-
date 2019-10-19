@@ -48,7 +48,11 @@ class ReLog(nn.Module):
     def extra_repr(self):
         return 'n=%.2f' % (self.n)
 
+class QuadraticKernel(nn.Module):
     
+    def forward(self, input):
+        return torch.cat((input, input*input), dim=1)
+
 class FoldingMaxout(nn.Module):
     ''' Fold the previous layer into k-tuples and output the max of each.
     
@@ -77,7 +81,8 @@ class FoldingMaxout(nn.Module):
 class CNN(nn.Module):
 
     def __init__(self, use_relog=False, use_maxout=None, max_folding_factor=4, min_folding_factor=1,
-                 conv1_out_channels=16, conv2_out_channels=32, use_sigmoid_out=False, dropout_prob=0.15):
+                 conv1_out_channels=16, conv2_out_channels=32, use_sigmoid_out=False, dropout_prob=0,
+                 use_quadratic_kernel=False):
         super(CNN, self).__init__()
         self.use_maxout = use_maxout
         self.use_relog = use_relog
@@ -89,6 +94,7 @@ class CNN(nn.Module):
         self.use_sigmoid_out = use_sigmoid_out
         self.n_classes = 10
         self.dropout_prob = dropout_prob
+        self.use_quadratic_kernel = use_quadratic_kernel
         self.weights = []
         self.bias = []
 
@@ -111,10 +117,11 @@ class CNN(nn.Module):
         return nn.Dropout(self.dropout_prob, inplace=True)
 
     def build_conv1(self):
+        actual_input_channels = (2 if self.use_quadratic_kernel else 1)
         actual_out_channels = self.conv1_out_channels * self.folding_factor
         cnn = self.conv_func(
-                    in_channels=1,              # input height
-                    out_channels=actual_out_channels, # n_filters
+                    in_channels=actual_input_channels,
+                    out_channels=actual_out_channels,
                     kernel_size=5,              # filter size
                     stride=1,                   # filter movement/step
                     padding=2,                  
@@ -124,14 +131,16 @@ class CNN(nn.Module):
         return self.wrap_linear(cnn)
         
     def build_conv2(self):
+        actual_input_channels = self.conv1_out_channels * (2 if self.use_quadratic_kernel else 1)
         actual_out_channels = self.conv2_out_channels * self.folding_factor
-        cnn = self.conv_func(self.conv1_out_channels, actual_out_channels, 5, 1, 2)
+        cnn = self.conv_func(actual_input_channels, actual_out_channels, 5, 1, 2)
         self.weights.append(cnn.weight)
         self.bias.append(cnn.bias)
         return self.wrap_linear(cnn)
         
     def build_output(self):
-        out = nn.Linear(self.conv2_out_channels * 7 * 7, self.n_classes * self.folding_factor)
+        actual_input_channels = self.conv2_out_channels * 7 * 7 * (2 if self.use_quadratic_kernel else 1)
+        out = nn.Linear(actual_input_channels, self.n_classes * self.folding_factor)
         self.weights.append(out.weight)
         self.bias.append(out.bias)
         modules = self.wrap_linear(out, activ=False)
@@ -142,6 +151,8 @@ class CNN(nn.Module):
     def wrap_linear(self, linear, activ=True):
         assert not isinstance(linear, list)
         modules = [linear]
+        if self.use_quadratic_kernel:
+            modules.insert(0, QuadraticKernel())
         if self.dropout_prob > 0:
             modules.insert(0, self.dropout())
         if self.use_maxout == 'max':
@@ -178,7 +189,8 @@ cfg = {
 class VGG(nn.Module):
 
     def __init__(self, vgg_name="VGG11", use_relog=False, relog_n=10, use_maxout=None, max_folding_factor=4, 
-                 min_folding_factor=1, use_sigmoid_out=False, use_batchnorm=True, use_homemade_initialization=False):
+                 min_folding_factor=1, use_sigmoid_out=False, use_batchnorm=True, use_homemade_initialization=False,
+                 use_quadratic_kernel=False):
         super(VGG, self).__init__()
         self.use_maxout = use_maxout
         self.use_relog = use_relog
@@ -189,6 +201,7 @@ class VGG(nn.Module):
         self.use_sigmoid_out = use_sigmoid_out
         self.use_batchnorm = use_batchnorm
         self.use_homemade_initialization = use_homemade_initialization
+        self.use_quadratic_kernel = use_quadratic_kernel
 
         self.n_classes = 10
         self.weights = []
@@ -230,7 +243,10 @@ class VGG(nn.Module):
             if x == 'M':
                 layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
             elif isinstance(x, int):
-                layers += [self.conv_func(in_channels, x * self.folding_factor, kernel_size=3, padding=1)]
+                if self.use_quadratic_kernel:
+                    layers += [QuadraticKernel()]
+                layers += [self.conv_func(in_channels * (2 if self.use_quadratic_kernel else 1), 
+                                          x * self.folding_factor, kernel_size=3, padding=1)]
                 if self.use_batchnorm:
                     layers += [nn.BatchNorm2d(x * self.folding_factor)]
                 layers += [self.activation_func()]

@@ -52,9 +52,8 @@ class TrainingService(object):
             transform=torchvision.transforms.ToTensor()
         )
 
-    def build_and_train_cnn(self, name=None, strictening=None, **kwargs):
+    def build_and_train_cnn(self, name=None, regularization=None, l1=0, l2=0, bias_l1=0, bias_l2=0, **kwargs):
         use_sigmoid_out = kwargs.get('use_sigmoid_out', False)
-        torch.manual_seed(3582)    # reproducible    
         # Data Loader for easy mini-batch return in training, the image batch shape will be (BS, 1, 28, 28)
         train_loader = Data.DataLoader(dataset=self.train_data, batch_size=self.batch_size, shuffle=True)
         test_loader = Data.DataLoader(dataset=self.test_data, batch_size=2000, shuffle=True)
@@ -63,7 +62,8 @@ class TrainingService(object):
         optimizer = torch.optim.Adam(cnn.parameters(), amsgrad=True, lr=self.lr)
         loss_func = nn.MSELoss() if use_sigmoid_out else nn.CrossEntropyLoss()
         self.train_loop_with_timeout(cnn, train_loader, test_loader, optimizer, 
-                                     loss_func, use_sigmoid_out, strictening)
+                                     loss_func, use_sigmoid_out, regularization, 
+                                     l1, l2, bias_l1, bias_l2)
         if name:
             out_path = os.path.join(self.home_dir, 'output', '%s.pkl' % name)
             torch.save(cnn, out_path)
@@ -71,7 +71,8 @@ class TrainingService(object):
         return cnn
 
     def train_loop_with_timeout(self, cnn, train_loader, test_loader, optimizer, 
-                                loss_func, use_sigmoid_out, strictening):
+                                loss_func, use_sigmoid_out, regularization, 
+                                l1, l2, bias_l1, bias_l2):
         cnn.to(self.device)
         started_sec = time()
         for epoch in range(self.n_epochs):
@@ -85,10 +86,18 @@ class TrainingService(object):
                     if use_sigmoid_out:
                         train_y = one_hot(train_y, num_classes=10).float()
                     loss = loss_func(output, train_y)
-                    if strictening is not None and strictening > 0:
-                        weight_reg = sum(w.abs().mean() for w in cnn.weights)
-                        bias_reg = sum(b.mean() for b in cnn.bias) # notice: no abs()
-                        loss += strictening * (weight_reg + bias_reg)
+                    if regularization in ('max-fit', 'max-margin'):
+                        assert (l1 > 0) or (l2 > 0), "Strength of regularization must be specified"
+                        if l1 > 0:
+                            loss += l1 * sum(w.abs().mean() for w in cnn.weights)
+                        if l2 > 0:
+                            loss += l2 * sum((w*w).mean() for w in cnn.weights)
+                    if regularization == 'max-fit':
+                        assert (bias_l1 > 0) or (bias_l2 > 0), "For max-fit, strength of bias regularization must be specified"
+                        if bias_l1 > 0:
+                            loss += bias_l1 * sum(b.mean() for b in cnn.bias) # notice: no abs()
+                        if bias_l2 > 0:
+                            loss += bias_l2 * sum((b*b.abs()).mean() for b in cnn.bias) # notice: signed
                     optimizer.zero_grad()           # clear gradients for this training step
                     loss.backward()                 # backpropagation, compute gradients
                     optimizer.step()                # apply gradients
@@ -151,6 +160,7 @@ class CIFAR10_TrainingService(object):
                 bias_reg = sum(b.mean() for b in net.bias) # notice: no abs()
                 loss += self.strictening * (weight_reg + bias_reg)
             loss.backward()
+            nn.utils.clip_grad_value_(net.parameters(), 5)
             self.optimizer.step()
 
             train_loss += loss.item()
@@ -165,7 +175,6 @@ class CIFAR10_TrainingService(object):
             print('Model saved to %s' % out_path)
 
     def test(self, net, epoch):
-        global best_acc
         net.eval()
         test_loss = 0
         correct = 0
@@ -189,28 +198,26 @@ class CIFAR10_TrainingService(object):
         print('Test eval: Loss: %.3f | Acc: %.3f%% (%d/%d)'
             % (test_loss/(batch_idx+1), 100.*correct/total, correct, total))
 
-    def build_and_train(self, name=None, strictening=None, **kwargs):
+    def build_and_train(self, name=None, n_epochs=20, strictening=None, **kwargs):
+        self.vgg_name = kwargs.get('vgg_name', 'VGG11')
         self.use_sigmoid_out = kwargs.get('use_sigmoid_out', False)
         self.use_relog = kwargs.get('use_relog', False)
-        self.vgg_name = kwargs.get('vgg_name', 'VGG11')
+        self.use_quadratic_kernel = kwargs.get('use_quadratic_kernel', False)
         self.strictening = strictening
-        torch.manual_seed(3582) # reproducible
         net = VGG(**kwargs)
         print(net)
         net = net.to(self.device)
         out_path = os.path.join(self.home_dir, 'output', '%s.pkl' % name) if name else None
-        self.optimizer = optim.SGD(net.parameters(), lr=0.1, momentum=0.9)
+        # lr = (0.01 if self.use_quadratic_kernel else 0.1)
+        self.optimizer = optim.Adam(net.parameters(), lr=0.1)
         self.criterion = nn.MSELoss() if self.use_sigmoid_out else nn.CrossEntropyLoss()
-        for epoch in range(15):
+        for epoch in range(n_epochs):
             # since it takes a looong time to train, we'll save every epoch
             self.train(net, epoch, out_path) 
-            self.test(net, epoch)
-        self.optimizer = optim.SGD(net.parameters(), lr=0.01, momentum=0.9)
-        for epoch in range(15, 20):
-            self.train(net, epoch, out_path)
             self.test(net, epoch)
 
 if __name__ == "__main__":
     # test the code
-    ts = CIFAR10_TrainingService('.', normalize_data=False)
-    ts.build_and_train(vgg_name='VGG11', use_maxout='max', use_relog=True, relog_n=5)
+    ts = CIFAR10_TrainingService(home_dir='.', normalize_data=False)
+    ts.build_and_train(vgg_name='VGG11', n_epochs=1, use_maxout='max', use_relog=True, use_quadratic_kernel=True)
+    
