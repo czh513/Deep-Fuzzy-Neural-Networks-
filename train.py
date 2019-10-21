@@ -5,19 +5,65 @@ from torch.nn.functional import one_hot
 import torch.utils.data as Data
 import torchvision
 import matplotlib.pyplot as plt
-from models import CNN, VGG
+from models import CNN, VGG, Spherical, inc_spherical_multiplier, reset_spherical_multiplier
 from utils import grouper_variable_length
 from time import time
 import torch.backends.cudnn as cudnn
 import torch.optim as optim
+import itertools
+import math
+import numpy as np
 
 def gaussian_noise(epsilon):
     transform_func = lambda x : (x + torch.randn_like(x)*epsilon).clamp(min=0, max=1)
     return torchvision.transforms.Lambda(transform_func)
 
+class PixelScramble(object):
+
+    def __call__(self, input):
+        ''' Scramble pixels in a picture, without crossing color channels '''
+        output = input.view(input.shape[0], input.shape[1], -1)
+        order = torch.randperm(output.shape[2])
+        return output[:,:,order].view(input.shape)
+
+class BlockScramble(object):
+    
+    def __init__(self, block_size=5):
+        self.block_size = block_size
+
+    def blocked_randperm(self, n):
+      n_round = int(math.ceil(n / float(self.block_size)) * self.block_size)
+      indices = torch.arange(n_round).fmod_(n)
+      blocked_indices = indices.reshape(-1, self.block_size)
+      blocked_indices = blocked_indices[torch.randperm(blocked_indices.shape[0])]
+      indices = blocked_indices.view(-1)[:n]
+      return indices
+      
+    def __call__(self, input):
+        ''' Scramble pixels in a picture, without crossing color channels '''
+        output = (input
+                  [:,:,self.blocked_randperm(input.shape[2]),:]
+                  [:,:,:,self.blocked_randperm(input.shape[3])])
+        return output
+
+class ChoiceScramble(object):
+
+    def __init__(self, scrambles):
+        self.scrambles = scrambles
+
+    def __call__(self, input):
+        i = np.random.choice(len(self.scrambles))
+        return self.scrambles[i](input)
+
+def tmean(vals):
+    ''' Compute micro-average of a list of Torch Tensors '''
+    vals = [val.view(-1) for val in vals]
+    return torch.cat(vals).mean()
+
 class TrainingService(object):
 
-    def __init__(self, home_dir, epsilon=0.3, batch_size=64, n_epochs=2, timeout_sec=120, test_freq=100, lr=0.001):
+    def __init__(self, home_dir, epsilon=0.3, batch_size=64, n_epochs=2, timeout_sec=120, 
+                 test_freq=100, lr=0.001, num_classes=10): 
         self.home_dir = home_dir
         self.batch_size = batch_size
         self.n_epochs = n_epochs
@@ -29,6 +75,8 @@ class TrainingService(object):
         print("Using device: %s" % self.device)
         self.load_data()
         self.cnn_func = CNN
+        self.num_classes = num_classes
+        self.scramble = ChoiceScramble([PixelScramble(), BlockScramble(5), BlockScramble(7)])
 
     def load_data(self):
         self.data_dir = os.path.join(self.home_dir, 'mnist')
@@ -52,61 +100,75 @@ class TrainingService(object):
             transform=torchvision.transforms.ToTensor()
         )
 
-    def build_and_train_cnn(self, name=None, regularization=None, l1=0, l2=0, bias_l1=0, bias_l2=0, **kwargs):
+    def build_and_train_cnn(self, name=None, regularization=None, l1=0, l2=0, 
+                            bias_l1=0, bias_l2=0, use_scrambling=False, **kwargs):
         use_sigmoid_out = kwargs.get('use_sigmoid_out', False)
-        # Data Loader for easy mini-batch return in training, the image batch shape will be (BS, 1, 28, 28)
-        train_loader = Data.DataLoader(dataset=self.train_data, batch_size=self.batch_size, shuffle=True)
-        test_loader = Data.DataLoader(dataset=self.test_data, batch_size=2000, shuffle=True)
+        self.use_spherical = kwargs.get('use_spherical', False)
         cnn = self.cnn_func(**kwargs)
         print(cnn)  # net architecture
-        optimizer = torch.optim.Adam(cnn.parameters(), amsgrad=True, lr=self.lr)
-        loss_func = nn.MSELoss() if use_sigmoid_out else nn.CrossEntropyLoss()
-        self.train_loop_with_timeout(cnn, train_loader, test_loader, optimizer, 
-                                     loss_func, use_sigmoid_out, regularization, 
-                                     l1, l2, bias_l1, bias_l2)
+        self.train_loop_with_timeout(cnn, use_sigmoid_out, regularization, 
+                                     l1, l2, bias_l1, bias_l2, use_scrambling)
         if name:
             out_path = os.path.join(self.home_dir, 'output', '%s.pkl' % name)
             torch.save(cnn, out_path)
             print('Model saved to %s' % out_path)
         return cnn
 
-    def train_loop_with_timeout(self, cnn, train_loader, test_loader, optimizer, 
-                                loss_func, use_sigmoid_out, regularization, 
-                                l1, l2, bias_l1, bias_l2):
+    def train_loop_with_timeout(self, cnn, use_sigmoid_out=False, regularization=None, 
+                                l1=0, l2=0, bias_l1=0, bias_l2=0, use_scrambling=False):
+        train_loader = Data.DataLoader(dataset=self.train_data, batch_size=self.batch_size, shuffle=True)
+        test_loader = Data.DataLoader(dataset=self.test_data, batch_size=2000, shuffle=True)
+        optimizer = torch.optim.Adam(cnn.parameters(), amsgrad=True, lr=self.lr)
+        loss_func = nn.MSELoss() if use_sigmoid_out else nn.CrossEntropyLoss()
+
         cnn.to(self.device)
         started_sec = time()
+        reset_spherical_multiplier()
         for epoch in range(self.n_epochs):
             batch_groups = grouper_variable_length(train_loader, self.test_freq)
             for batch_group, (test_x, test_y) in zip(batch_groups, test_loader): 
-                for train_x, train_y in batch_group:
+                for (train_x, train_y) in batch_group:
                     cnn.train()
                     train_x = train_x.to(self.device)
                     train_y = train_y.to(self.device)
                     output, _ = cnn(train_x)
                     if use_sigmoid_out:
-                        train_y = one_hot(train_y, num_classes=10).float()
+                        train_y = one_hot(train_y, num_classes=self.num_classes).float()
                     loss = loss_func(output, train_y)
-                    if regularization in ('max-fit', 'max-margin'):
+                    if use_scrambling and epoch >= 1:
+                        assert use_sigmoid_out, "Softmax networks can't handle scrambled input"
+                        scramble_x = self.scramble(train_x)[:train_x.shape[0]]
+                        scramble_y = torch.zeros(scramble_x.shape[0], self.num_classes).to(self.device)
+                        scramble_output, _ = cnn(scramble_x)
+                        loss += loss_func(scramble_output, scramble_y)
+                    if regularization in ('max-fit', 'max-margin') and not self.use_spherical:
                         assert (l1 > 0) or (l2 > 0), "Strength of regularization must be specified"
                         if l1 > 0:
-                            loss += l1 * sum(w.abs().mean() for w in cnn.weights)
+                            loss += l1 * tmean(w.abs() for w in cnn.weights)
                         if l2 > 0:
-                            loss += l2 * sum((w*w).mean() for w in cnn.weights)
+                            loss += l2 * tmean(w*w for w in cnn.weights)
+                    if regularization == 'max-margin' and self.use_spherical:
+                        assert (bias_l1 > 0) or (bias_l2 > 0), "For max-margin with spherical, strength of bias regularization must be specified"
+                        if bias_l1 > 0:
+                            loss += -bias_l1 * tmean(b for b in cnn.bias) # notice: no abs()
+                        if bias_l2 > 0:
+                            loss += -bias_l2 * tmean(b*b.abs() for b in cnn.bias) # notice: signed
                     if regularization == 'max-fit':
                         assert (bias_l1 > 0) or (bias_l2 > 0), "For max-fit, strength of bias regularization must be specified"
                         if bias_l1 > 0:
-                            loss += bias_l1 * sum(b.mean() for b in cnn.bias) # notice: no abs()
+                            loss += bias_l1 * tmean(b for b in cnn.bias) # notice: no abs()
                         if bias_l2 > 0:
-                            loss += bias_l2 * sum((b*b.abs()).mean() for b in cnn.bias) # notice: signed
+                            loss += bias_l2 * tmean(b*b.abs() for b in cnn.bias) # notice: signed
                     optimizer.zero_grad()           # clear gradients for this training step
                     loss.backward()                 # backpropagation, compute gradients
                     optimizer.step()                # apply gradients
-
+                    if self.use_spherical:
+                        inc_spherical_multiplier()
                 cnn.eval()
                 with torch.no_grad():
                     test_output, _ = cnn(test_x.to(self.device))
                     pred_y = torch.max(test_output, 1)[1].cpu().data.numpy()
-                    accuracy = float((pred_y == test_y.data.numpy()).astype(int).sum()) / float(test_y.size(0))
+                    accuracy = float((pred_y == test_y.data.numpy()).astype(int).mean())
                     print('Epoch: ', epoch, '| train loss: %.4f' % loss.cpu().data.numpy(), '| test accuracy: %.2f' % accuracy)
                 
                 elapsed_sec = time() - started_sec
@@ -156,12 +218,14 @@ class CIFAR10_TrainingService(object):
                 loss_targets = targets
             loss = self.criterion(outputs, loss_targets)
             if self.strictening is not None and self.strictening > 0:
-                weight_reg = sum(w.abs().mean() for w in net.weights)
-                bias_reg = sum(b.mean() for b in net.bias) # notice: no abs()
+                weight_reg = tmean(w.abs() for w in net.weights)
+                bias_reg = tmean(b for b in net.bias) # notice: no abs()
                 loss += self.strictening * (weight_reg + bias_reg)
             loss.backward()
             nn.utils.clip_grad_value_(net.parameters(), 5)
             self.optimizer.step()
+            if self.use_spherical:
+                inc_spherical_multiplier()
 
             train_loss += loss.item()
             _, predicted = outputs.max(1)
@@ -202,15 +266,15 @@ class CIFAR10_TrainingService(object):
         self.vgg_name = kwargs.get('vgg_name', 'VGG11')
         self.use_sigmoid_out = kwargs.get('use_sigmoid_out', False)
         self.use_relog = kwargs.get('use_relog', False)
-        self.use_quadratic_kernel = kwargs.get('use_quadratic_kernel', False)
+        self.use_spherical = kwargs.get('use_spherical', False)
         self.strictening = strictening
         net = VGG(**kwargs)
         print(net)
         net = net.to(self.device)
         out_path = os.path.join(self.home_dir, 'output', '%s.pkl' % name) if name else None
-        # lr = (0.01 if self.use_quadratic_kernel else 0.1)
         self.optimizer = optim.Adam(net.parameters(), lr=0.1)
         self.criterion = nn.MSELoss() if self.use_sigmoid_out else nn.CrossEntropyLoss()
+        reset_spherical_multiplier()
         for epoch in range(n_epochs):
             # since it takes a looong time to train, we'll save every epoch
             self.train(net, epoch, out_path) 
@@ -218,6 +282,10 @@ class CIFAR10_TrainingService(object):
 
 if __name__ == "__main__":
     # test the code
-    ts = CIFAR10_TrainingService(home_dir='.', normalize_data=False)
-    ts.build_and_train(vgg_name='VGG11', n_epochs=1, use_maxout='max', use_relog=True, use_quadratic_kernel=True)
+    # ts = CIFAR10_TrainingService(home_dir='.', normalize_data=False)
+    # ts.build_and_train(vgg_name='VGG11', n_epochs=1, use_maxout='max', use_relog=True, use_spherical=True)
+    ts = TrainingService(home_dir='.', n_epochs=1)
+    ts.build_and_train_cnn(use_scrambling=True, use_maxout='min', min_folding_factor=4, use_relog=True, 
+                           use_spherical=True, use_sigmoid_out=True, regularization='max-margin', bias_l1=0.1)
+
     
