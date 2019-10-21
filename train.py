@@ -5,7 +5,7 @@ from torch.nn.functional import one_hot
 import torch.utils.data as Data
 import torchvision
 import matplotlib.pyplot as plt
-from models import CNN, VGG, Spherical, inc_spherical_multiplier, reset_spherical_multiplier
+from models import CNN, VGG, Spherical, inc_curvature_multiplier, reset_curvature_multiplier
 from utils import grouper_variable_length
 from time import time
 import torch.backends.cudnn as cudnn
@@ -123,7 +123,7 @@ class TrainingService(object):
 
         cnn.to(self.device)
         started_sec = time()
-        reset_spherical_multiplier()
+        reset_curvature_multiplier()
         for epoch in range(self.n_epochs):
             batch_groups = grouper_variable_length(train_loader, self.test_freq)
             for batch_group, (test_x, test_y) in zip(batch_groups, test_loader): 
@@ -163,7 +163,7 @@ class TrainingService(object):
                     loss.backward()                 # backpropagation, compute gradients
                     optimizer.step()                # apply gradients
                     if self.use_spherical:
-                        inc_spherical_multiplier()
+                        inc_curvature_multiplier()
                 cnn.eval()
                 with torch.no_grad():
                     test_output, _ = cnn(test_x.to(self.device))
@@ -225,7 +225,7 @@ class CIFAR10_TrainingService(object):
             nn.utils.clip_grad_value_(net.parameters(), 5)
             self.optimizer.step()
             if self.use_spherical:
-                inc_spherical_multiplier()
+                inc_curvature_multiplier()
 
             train_loss += loss.item()
             _, predicted = outputs.max(1)
@@ -274,7 +274,7 @@ class CIFAR10_TrainingService(object):
         out_path = os.path.join(self.home_dir, 'output', '%s.pkl' % name) if name else None
         self.optimizer = optim.Adam(net.parameters(), lr=0.1)
         self.criterion = nn.MSELoss() if self.use_sigmoid_out else nn.CrossEntropyLoss()
-        reset_spherical_multiplier()
+        reset_curvature_multiplier()
         for epoch in range(n_epochs):
             # since it takes a looong time to train, we'll save every epoch
             self.train(net, epoch, out_path) 
@@ -286,6 +286,4 @@ if __name__ == "__main__":
     # ts.build_and_train(vgg_name='VGG11', n_epochs=1, use_maxout='max', use_relog=True, use_spherical=True)
     ts = TrainingService(home_dir='.', n_epochs=1)
     ts.build_and_train_cnn(use_scrambling=True, use_maxout='min', min_folding_factor=4, use_relog=True, 
-                           use_spherical=True, use_sigmoid_out=True, regularization='max-margin', bias_l1=0.1)
-
-    
+                           use_elliptical=True, use_sigmoid_out=True, regularization='max-margin', l1=0.1, bias_l1=0.1)    

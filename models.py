@@ -48,27 +48,45 @@ class ReLog(nn.Module):
     def extra_repr(self):
         return 'n=%.2f' % (self.n)
 
-spherical_multiplier = None
+curvature_multiplier = None
 
-def inc_spherical_multiplier(inc=0.001):
-    global spherical_multiplier
-    spherical_multiplier = spherical_multiplier or 0
-    spherical_multiplier = min(spherical_multiplier + inc, 1)
+def inc_curvature_multiplier(inc=0.001):
+    global curvature_multiplier
+    curvature_multiplier = curvature_multiplier or 0
+    curvature_multiplier = min(curvature_multiplier + inc, 1)
 
-def reset_spherical_multiplier(val=0):
-    global spherical_multiplier
-    spherical_multiplier = val
+def reset_curvature_multiplier(val=0):
+    global curvature_multiplier
+    curvature_multiplier = val
 
 class Spherical(nn.Linear):
 
     def forward(self, input):
-        global spherical_multiplier
-        if self.training and spherical_multiplier is not None:
-            self.multiplier = spherical_multiplier
+        global curvature_multiplier
+        if self.training and curvature_multiplier is not None:
+            self.multiplier = curvature_multiplier
         output = super(Spherical, self).forward(input)
         a = 0.5 * self.multiplier
         output += -a * (input*input).mean(axis=1, keepdim=True) + a
         return output
+
+class Elliptical(nn.Linear):
+
+    def __init__(self, *args, **kwargs):
+        super(Elliptical, self).__init__(*args, **kwargs)
+        kwargs['bias'] = False
+        self._quadratic = nn.Linear(*args, **kwargs)
+
+    def forward(self, input):
+        global curvature_multiplier
+        if self.training and curvature_multiplier is not None:
+            self.multiplier = curvature_multiplier
+        linear_term = super(Elliptical, self).forward(input)
+        with torch.no_grad():
+            self._quadratic.weight.abs_()
+        quadratic_term = self._quadratic.forward(input*input)
+        a = self.multiplier
+        return -a * quadratic_term + a + linear_term
 
 class SphericalCNN(nn.Conv2d):
 
@@ -85,13 +103,31 @@ class SphericalCNN(nn.Conv2d):
         self._cnn_mean.weight.fill_(1/float(n_elems))
 
     def forward(self, input):
-        global spherical_multiplier
-        if self.training and spherical_multiplier is not None:
-            self.multiplier = spherical_multiplier
+        global curvature_multiplier
+        if self.training and curvature_multiplier is not None:
+            self.multiplier = curvature_multiplier
         output = super(SphericalCNN, self).forward(input)
         a = 0.5 * self.multiplier
         output += -a * self._cnn_mean.forward(input*input) + a
         return output
+
+class EllipticalCNN(nn.Conv2d):
+
+    def __init__(self, in_channels, out_channels, kernel_size, **kwargs):
+        super(EllipticalCNN, self).__init__(in_channels, out_channels, kernel_size, **kwargs)
+        kwargs['bias'] = False
+        self._quadratic = nn.Conv2d(in_channels, out_channels, kernel_size, **kwargs)
+
+    def forward(self, input):
+        global curvature_multiplier
+        if self.training and curvature_multiplier is not None:
+            self.multiplier = curvature_multiplier
+        linear_term = super(EllipticalCNN, self).forward(input)
+        with torch.no_grad():
+            self._quadratic.weight.abs_()
+        quadratic_term = self._quadratic.forward(input*input)
+        a = self.multiplier
+        return -a * quadratic_term + a + linear_term
 
 class FoldingMaxout(nn.Module):
     ''' Fold the previous layer into k-tuples and output the max of each.
@@ -122,7 +158,8 @@ class CNN(nn.Module):
 
     def __init__(self, use_relog=False, use_maxout='', max_folding_factor=4, min_folding_factor=2,
                  conv1_out_channels=16, conv2_out_channels=32, use_sigmoid_out=False, dropout_prob=0,
-                 use_spherical=False):
+                 use_spherical=False, use_elliptical=False):
+        assert not (use_spherical and use_elliptical), "Can't use elliptical and spherical units at the same time"
         super(CNN, self).__init__()
         self.use_maxout = use_maxout
         self.use_relog = use_relog
@@ -135,6 +172,7 @@ class CNN(nn.Module):
         self.n_classes = 10
         self.dropout_prob = dropout_prob
         self.use_spherical = use_spherical
+        self.use_elliptical = use_elliptical
         self.weights = []
         self.bias = []
 
@@ -144,11 +182,23 @@ class CNN(nn.Module):
         self.conv2 = nn.Sequential(*conv2_modules)
         self.out = self.build_output()
 
-    def linear_func(self, *args, **kwargs):
-        return (Spherical if self.use_spherical else nn.Linear)(*args, **kwargs)
+    def dense(self, *args, **kwargs):
+        if self.use_spherical:
+            f = Spherical
+        elif self.use_elliptical:
+            f = Elliptical
+        else:
+            f = nn.Linear
+        return f(*args, **kwargs)
 
-    def conv_func(self, *args, **kwargs):
-        return (SphericalCNN if self.use_spherical else nn.Conv2d)(*args, **kwargs)
+    def conv(self, *args, **kwargs):
+        if self.use_spherical:
+            f = SphericalCNN
+        elif self.use_elliptical:
+            f = EllipticalCNN
+        else:
+            f = nn.Conv2d
+        return f(*args, **kwargs)
 
     def activation_func(self):
         return ReLog(inplace=True) if self.use_relog else nn.ReLU(inplace=True)
@@ -158,7 +208,7 @@ class CNN(nn.Module):
 
     def build_conv1(self):
         actual_out_channels = self.conv1_out_channels * self.folding_factor
-        cnn = self.conv_func(
+        cnn = self.conv(
                     in_channels=1,
                     out_channels=actual_out_channels,
                     kernel_size=5,              # filter size
@@ -172,14 +222,14 @@ class CNN(nn.Module):
     def build_conv2(self):
         actual_input_channels = self.conv1_out_channels
         actual_out_channels = self.conv2_out_channels * self.folding_factor
-        cnn = self.conv_func(actual_input_channels, actual_out_channels, 5, stride=1, padding=2)
+        cnn = self.conv(actual_input_channels, actual_out_channels, 5, stride=1, padding=2)
         self.weights.append(cnn.weight)
         self.bias.append(cnn.bias)
         return self.wrap_linear(cnn)
         
     def build_output(self):
         actual_input_channels = self.conv2_out_channels * 7 * 7
-        out = self.linear_func(actual_input_channels, self.n_classes * self.folding_factor)
+        out = self.dense(actual_input_channels, self.n_classes * self.folding_factor)
         self.weights.append(out.weight)
         self.bias.append(out.bias)
         modules = self.wrap_linear(out, activ=False)
@@ -244,19 +294,19 @@ class VGG(nn.Module):
         self.weights = []
         self.bias = []
         self.features, last_layer_size = self._make_layers(cfg[vgg_name])
-        classifier = self.linear_func(last_layer_size, 10 * self.folding_factor)
+        classifier = self.dense(last_layer_size, 10 * self.folding_factor)
         self.weights.append(classifier.weight)
         self.bias.append(classifier.bias)
         classifier = self.append_maxout([classifier])
         self.classifier = nn.Sequential(*classifier)
 
-    def linear_func(self, *args, **kwargs):
+    def dense(self, *args, **kwargs):
         module = (Spherical if self.use_spherical else nn.Linear)(*args, **kwargs)
         if self.use_homemade_initialization:
             module.register_forward_pre_hook(DynamicInitializer())
         return module
 
-    def conv_func(self, *args, **kwargs):
+    def conv(self, *args, **kwargs):
         module = (SphericalCNN if self.use_spherical else nn.Conv2d)(*args, **kwargs)
         if self.use_homemade_initialization:
             module.register_forward_pre_hook(DynamicInitializer())
@@ -280,7 +330,7 @@ class VGG(nn.Module):
             if x == 'M':
                 layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
             elif isinstance(x, int):
-                layers += [self.conv_func(in_channels, 
+                layers += [self.conv(in_channels, 
                                           x * self.folding_factor, kernel_size=3, padding=1)]
                 if self.use_batchnorm:
                     layers += [nn.BatchNorm2d(x * self.folding_factor)]

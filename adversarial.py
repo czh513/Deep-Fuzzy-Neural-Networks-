@@ -13,6 +13,7 @@ import torch
 from torchvision import datasets, transforms
 from matplotlib import pyplot as plt
 import seaborn as sns
+from scipy.special import softmax
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 print("Using device: %s" % device)
@@ -30,7 +31,7 @@ class AdversarialExperiment(object):
         with tf.Session(config=tf.ConfigProto(log_device_placement=True)) as sess:
             print('Evaluating model: ' + model_path)
 
-            torch_model_orig = torch.load(model_path).to(device)
+            torch_model_orig = torch.load(model_path, map_location=torch.device('cpu')).to(device)
             torch_model = lambda x: torch_model_orig(x)[0] # to standard format
             tf_model_fn = convert_pytorch_model_to_tf(torch_model, out_dims=10)    
             cleverhans_model = CallableModelWrapper(tf_model_fn, output_layer='logits')
@@ -88,7 +89,13 @@ class AdversarialExperiment(object):
         xs, d = self.saved_xs, self.saved_diff
         self.saved_diff_norm = np.linalg.norm(d.reshape(xs.shape[0], xs.size//xs.shape[0]), ord=2, axis=1)
 
-    def plot_example2(self, i = None):
+    def extract_max_probs_on_perturbed_examples(self):
+        perturbed_examples = ~np.isclose(np.linalg.norm(self.saved_advs-self.saved_xs), 0)
+        print('%d examples of %d were perturbed' % (perturbed_examples.sum(), len(perturbed_examples)))
+        logits = self.saved_adv_preds[perturbed_examples]
+        return np.max(softmax(logits, axis=1), axis=1)
+
+    def plot_example(self, i = None):
         nonzero_diff_indices, = self.saved_diff_norm.nonzero()
         i = i or np.random.choice(len(nonzero_diff_indices))
         idx = nonzero_diff_indices[i]
@@ -104,3 +111,15 @@ class AdversarialExperiment(object):
         ax[4].title.set_text('Prediction on adv')
         ax[4].bar(np.arange(10), self.saved_adv_preds[idx])
         print('Perturbation strength (L2): %.1f' % self.saved_diff_norm[idx])
+
+if __name__ == "__main__":
+    from cleverhans.attacks import FastGradientMethod
+    from torchvision import datasets, transforms
+    import numpy as np
+    test_data = datasets.MNIST('mnist', train=False, transform=transforms.ToTensor())
+    fgsm_params = {'ord': np.inf, 'eps': 0.3, 'clip_min': 0., 'clip_max': 1. }
+    ex = AdversarialExperiment(FastGradientMethod, fgsm_params, test_data, batch_size=100)  
+    model_path = 'output/cnn-mnist-relu-maxfit_l2_01_05.pkl'
+    accuracies = ex.evaluate_model(model_path, num_batches=10)
+    print(accuracies)
+    print(ex.extract_max_probs_on_perturbed_examples())

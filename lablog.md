@@ -213,3 +213,38 @@ I think the not-so-strong performance is due to
 a lack of hyperparameter tuning instead of a fundamental problem.
 Another thing I notice is although the (sigmoid) output is over-confident, if we
 normalize them using softmax, we'll get close to 50% in all cases.
+
+Got new results, every still makes sense. Got blocked from Google Colab
+for running long-term jobs :)) Going to move to Cartesius anyway.
+
+# Mon 21 Oct
+
+If I report confidence, it needs to be under this attack:
+https://github.com/tensorflow/cleverhans/blob/688fe64de5bda82895cc8729348a5d761c5e7813/cleverhans/attacks/max_confidence.py
+
+In essence, attacks only work on the rate of fooling models but don't 
+optimize the confidence on the fooled prediction so it's been known
+before that we could "defend" models by confidence thresholding and
+there was already a method to circumvent this defense.
+
+Talked to Antske, agreed to cut it into a short paper and wrap it up ASAP.
+
+Should I discuss the overfitting hypothesis of adversarial examples?
+It was already discussed in Warde-farley and Goodfellow (2018), 
+section 1.2.3 but maybe I could provide supporting evidence?
+
+Warde-farley, D., & Goodfellow, I. (2018). Adversarial Perturbations of Deep Neural Networks. In Perturbations, Optimization, and Statistics. https://doi.org/10.7551/mitpress/10761.003.0012
+
+Generalized [spherical units](notebooks/spherical_filters.ipynb) into
+[elliptical units](notebooks/elliptical_filters.ipynb) such that 
+it is possible to ignore certain input variable and the regularization
+formulae become more natural.
+
+Moving to Cartesius... the `environment.yaml` file wasn't useable 
+(because... of course :-|) so I had to install packages manually.
+
+TODO: measure average confidence on **only perturbed** images
+
+TODO: move to Cartesius
+
+TODO: blackbox attack: https://github.com/tensorflow/cleverhans/blob/688fe64de5bda82895cc8729348a5d761c5e7813/tests_tf/test_mnist_blackbox.py
