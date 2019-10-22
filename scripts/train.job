@@ -6,7 +6,16 @@
 . scripts/init-cartesius.sh
 . venv/bin/activate
 
+echo -n "Started: " && date
+
+# # train two at the same time to utilize Cartesius's GPUs
+# python -u train.py cifar-10 --vgg_name=VGG11 --device=cuda:0 --n_epochs=20 &> output/train-vgg11.log &
+# python -u train.py cifar-10 --vgg_name=VGG13 --device=cuda:1 --n_epochs=20 &> output/train-vgg13.log &
+# wait
+
 # train two at the same time to utilize Cartesius's GPUs
-python -u train.py cifar-10 --vgg_name=VGG11 --device=cuda:0 &> output/train-vgg11.log &
-python -u train.py cifar-10 --vgg_name=VGG13 --device=cuda:1 &> output/train-vgg13.log &
+python -u train.py cifar-10 --vgg_name=VGG16 --device=cuda:0 --n_epochs=50 &> output/train-vgg16.log &
+python -u train.py cifar-10 --vgg_name=VGG19 --device=cuda:1 --n_epochs=50 &> output/train-vgg19.log &
 wait
+
+echo -n "Finished: " && date

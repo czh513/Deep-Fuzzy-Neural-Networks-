@@ -364,4 +364,4 @@ class VGG(nn.Module):
                 FoldingMaxout(self.min_folding_factor, dim=1, use_min=True),
                 FoldingMaxout(self.max_folding_factor, dim=1)
             ] 
-        return layers       
+        return layers

@@ -248,11 +248,21 @@ Moving to Cartesius... the `environment.yaml` file wasn't useable
 Training a few baseline model (VGG11 and VGG13) on Cartesius so that
 I know what kind of performance can be expected in how much time.
 
-    commit 85ec98929bc2b2f9540765c850965f67b59b9537
+    commit: 85ec98929bc2b2f9540765c850965f67b59b9537
+    
+    [minhle@int2 newlogic]$ sbatch scripts/train.job
+    Submitted batch job 7008627
 
-Initially, models fail to train. After much debugging, found out that
+    results:
+    tail -f output/train-vgg11.log
+    tail -f output/train-vgg13.log
+
+Initially, models fail to train. After much debugging, I found out that
 it was due to an untested change I put it a while ago (gradient clipping 
 to L_inf=5).
+
+TODO: compare neurons of ReLU and logic nets to see if the latter is
+"more logic" (what would that mean...?)
 
 TODO: evaluate elliptical
 
