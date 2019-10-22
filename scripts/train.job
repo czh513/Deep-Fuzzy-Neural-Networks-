@@ -14,8 +14,10 @@ echo -n "Started: " && date
 # wait
 
 # train two at the same time to utilize Cartesius's GPUs
-python -u train.py cifar-10 --vgg_name=VGG16 --device=cuda:0 --n_epochs=50 &> output/train-vgg16.log &
-python -u train.py cifar-10 --vgg_name=VGG19 --device=cuda:1 --n_epochs=50 &> output/train-vgg19.log &
+python -u train.py cifar-10 --vgg_name=VGG16 --device=cuda:0 \
+        --n_epochs=50 --lr=0.01 &> output/train-vgg16.log &
+python -u train.py cifar-10 --vgg_name=VGG19 --device=cuda:1 \
+        --n_epochs=50 --lr=0.01 &> output/train-vgg19.log &
 wait
 
 echo -n "Finished: " && date

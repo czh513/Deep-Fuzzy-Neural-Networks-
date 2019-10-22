@@ -261,6 +261,20 @@ Initially, models fail to train. After much debugging, I found out that
 it was due to an untested change I put it a while ago (gradient clipping 
 to L_inf=5).
 
+The script finishes 20 epochs quite fast... Trying deeper models:
+
+    commit: ce8a08a0352f2d40ba0880bc8f896aa34812d67f
+
+    [minhle@int2 newlogic]$ sbatch scripts/train.job
+    Submitted batch job 7008708
+
+    results:
+    tail -f output/train-vgg16.log
+    tail -f output/train-vgg19.log
+
+Turns out that deeper models fail to learn. Is it because of numerical
+stability? Reducing learning rate to 0.01.
+
 TODO: compare neurons of ReLU and logic nets to see if the latter is
 "more logic" (what would that mean...?)
 

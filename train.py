@@ -264,7 +264,7 @@ class CIFAR10_TrainingService(object):
             % (test_loss/(batch_idx+1), 100.*acc, correct, total))
         return acc
 
-    def build_and_train(self, name=None, n_epochs=20, strictening=None, **kwargs):
+    def build_and_train(self, name=None, n_epochs=20, strictening=None, lr=0.1, **kwargs):
         self.vgg_name = kwargs.get('vgg_name', 'VGG11')
         self.use_sigmoid_out = kwargs.get('use_sigmoid_out', False)
         self.use_relog = kwargs.get('use_relog', False)
@@ -274,7 +274,7 @@ class CIFAR10_TrainingService(object):
         print(net)
         net = net.to(self.device)
         out_path = os.path.join(self.home_dir, 'output', '%s.pkl' % name) if name else None
-        self.optimizer = optim.Adam(net.parameters(), lr=0.1)
+        self.optimizer = optim.Adam(net.parameters(), lr=lr)
         self.criterion = nn.MSELoss() if self.use_sigmoid_out else nn.CrossEntropyLoss()
         for epoch in range(n_epochs):
             # since it takes a looong time to train, we'll save every epoch
