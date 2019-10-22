@@ -248,7 +248,11 @@ Moving to Cartesius... the `environment.yaml` file wasn't useable
 Training a few baseline model (VGG11 and VGG13) on Cartesius so that
 I know what kind of performance can be expected in how much time.
 
+    commit 85ec98929bc2b2f9540765c850965f67b59b9537
 
+Initially, models fail to train. After much debugging, found out that
+it was due to an untested change I put it a while ago (gradient clipping 
+to L_inf=5).
 
 TODO: evaluate elliptical
 
