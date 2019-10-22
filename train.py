@@ -5,7 +5,7 @@ from torch.nn.functional import one_hot
 import torch.utils.data as Data
 import torchvision
 import matplotlib.pyplot as plt
-from models import CNN, VGG, Spherical, inc_curvature_multiplier, reset_curvature_multiplier
+from models import CNN, VGG, Spherical
 from utils import grouper_variable_length
 from time import time
 import torch.backends.cudnn as cudnn
@@ -63,7 +63,7 @@ def tmean(vals):
 class TrainingService(object):
 
     def __init__(self, home_dir, epsilon=0.3, batch_size=64, n_epochs=2, timeout_sec=120, 
-                 test_freq=100, lr=0.001, num_classes=10): 
+                 test_freq=100, lr=0.001, num_classes=10, device='cpu'): 
         self.home_dir = home_dir
         self.batch_size = batch_size
         self.n_epochs = n_epochs
@@ -71,12 +71,11 @@ class TrainingService(object):
         self.test_freq = test_freq
         self.lr = lr
         self.epsilon = epsilon
-        self.device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
-        print("Using device: %s" % self.device)
         self.load_data()
         self.cnn_func = CNN
         self.num_classes = num_classes
         self.scramble = ChoiceScramble([PixelScramble(), BlockScramble(5), BlockScramble(7)])
+        self.device = device
 
     def load_data(self):
         self.data_dir = os.path.join(self.home_dir, 'mnist')
@@ -123,7 +122,6 @@ class TrainingService(object):
 
         cnn.to(self.device)
         started_sec = time()
-        reset_curvature_multiplier()
         for epoch in range(self.n_epochs):
             batch_groups = grouper_variable_length(train_loader, self.test_freq)
             for batch_group, (test_x, test_y) in zip(batch_groups, test_loader): 
@@ -162,8 +160,6 @@ class TrainingService(object):
                     optimizer.zero_grad()           # clear gradients for this training step
                     loss.backward()                 # backpropagation, compute gradients
                     optimizer.step()                # apply gradients
-                    if self.use_spherical:
-                        inc_curvature_multiplier()
                 cnn.eval()
                 with torch.no_grad():
                     test_output, _ = cnn(test_x.to(self.device))
@@ -178,13 +174,15 @@ class TrainingService(object):
 
 class CIFAR10_TrainingService(object):
 
-    def __init__(self, home_dir, normalize_data):
+    def __init__(self, home_dir, normalize_data, device='cpu', 
+                 num_batches_per_epoch=-1, report_interval=150, train_batch_size=128):
         self.home_dir = home_dir
-        self.prepare_data(normalize_data)
-        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        print("Using device: %s" % self.device)
+        self.prepare_data(normalize_data, train_batch_size)
+        self.device = device
+        self.num_batches_per_epoch = num_batches_per_epoch # set to a small value for testing
+        self.report_interval = report_interval
 
-    def prepare_data(self, normalize_data):
+    def prepare_data(self, normalize_data, train_batch_size):
         # Data
         print('==> Preparing data..')
         cifar_stats = ((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
@@ -197,9 +195,9 @@ class CIFAR10_TrainingService(object):
                 torchvision.transforms.ToTensor(),
         ] + ([torchvision.transforms.Normalize(*cifar_stats)] if normalize_data else []))
         trainset = torchvision.datasets.CIFAR10(root='./cifar10', train=True, download=True, transform=transform_train)
-        self.trainloader = torch.utils.data.DataLoader(trainset, batch_size=128, shuffle=True, num_workers=2)
+        self.trainloader = torch.utils.data.DataLoader(trainset, batch_size=train_batch_size, shuffle=True, num_workers=2)
         testset = torchvision.datasets.CIFAR10(root='./cifar10', train=False, download=True, transform=transform_test)
-        self.testloader = torch.utils.data.DataLoader(testset, batch_size=100, shuffle=False, num_workers=2)
+        self.testloader = torch.utils.data.DataLoader(testset, batch_size=256, shuffle=False, num_workers=2)
 
     # Training
     def train(self, net, epoch, out_path):
@@ -222,21 +220,23 @@ class CIFAR10_TrainingService(object):
                 bias_reg = tmean(b for b in net.bias) # notice: no abs()
                 loss += self.strictening * (weight_reg + bias_reg)
             loss.backward()
-            nn.utils.clip_grad_value_(net.parameters(), 5)
+            # nn.utils.clip_grad_value_(net.parameters(), 5)
             self.optimizer.step()
-            if self.use_spherical:
-                inc_curvature_multiplier()
 
             train_loss += loss.item()
             _, predicted = outputs.max(1)
             total += targets.size(0)
             correct += predicted.eq(targets).sum().item()
-            if batch_idx % 150 == 0:
+            acc = correct/total
+            if batch_idx % self.report_interval == 0:
                 print(batch_idx, '/', len(self.trainloader), ': Loss: %.3f | Acc: %.3f%% (%d/%d)'
-                    % (train_loss/(batch_idx+1), 100.*correct/total, correct, total))
+                    % (train_loss/(batch_idx+1), 100.*acc, correct, total))
+            if self.num_batches_per_epoch > 0 and batch_idx >= self.num_batches_per_epoch:
+                break
         if out_path:
             torch.save(net, out_path)
             print('Model saved to %s' % out_path)
+        return acc
 
     def test(self, net, epoch):
         net.eval()
@@ -259,8 +259,10 @@ class CIFAR10_TrainingService(object):
                 total += targets.size(0)
                 correct += predicted.eq(targets).sum().item()
 
+        acc = correct/total
         print('Test eval: Loss: %.3f | Acc: %.3f%% (%d/%d)'
-            % (test_loss/(batch_idx+1), 100.*correct/total, correct, total))
+            % (test_loss/(batch_idx+1), 100.*acc, correct, total))
+        return acc
 
     def build_and_train(self, name=None, n_epochs=20, strictening=None, **kwargs):
         self.vgg_name = kwargs.get('vgg_name', 'VGG11')
@@ -274,16 +276,25 @@ class CIFAR10_TrainingService(object):
         out_path = os.path.join(self.home_dir, 'output', '%s.pkl' % name) if name else None
         self.optimizer = optim.Adam(net.parameters(), lr=0.1)
         self.criterion = nn.MSELoss() if self.use_sigmoid_out else nn.CrossEntropyLoss()
-        reset_curvature_multiplier()
         for epoch in range(n_epochs):
             # since it takes a looong time to train, we'll save every epoch
-            self.train(net, epoch, out_path) 
-            self.test(net, epoch)
+            last_train_acc = self.train(net, epoch, out_path) 
+            last_test_acc = self.test(net, epoch)
+        return last_train_acc, last_test_acc
+
+
+def train(dataset, device='cpu', **kwargs):
+    if 'cuda' in device: 
+        assert torch.cuda.is_available()
+    print("Using device: %s" % device)
+    if dataset == 'mnist':
+        ts = TrainingService(home_dir='.', n_epochs=2, device=device)
+        ts.build_and_train_cnn(**kwargs)    
+    elif dataset == 'cifar-10':
+        ts = CIFAR10_TrainingService(home_dir='.', normalize_data=True, device=device)
+        ts.build_and_train(**kwargs)
+
 
 if __name__ == "__main__":
-    # test the code
-    # ts = CIFAR10_TrainingService(home_dir='.', normalize_data=False)
-    # ts.build_and_train(vgg_name='VGG11', n_epochs=1, use_maxout='max', use_relog=True, use_spherical=True)
-    ts = TrainingService(home_dir='.', n_epochs=1)
-    ts.build_and_train_cnn(use_scrambling=True, use_maxout='min', min_folding_factor=4, use_relog=True, 
-                           use_elliptical=True, use_sigmoid_out=True, regularization='max-margin', l1=0.1, bias_l1=0.1)    
+    import fire
+    fire.Fire(train)

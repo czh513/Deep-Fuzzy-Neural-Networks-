@@ -1,0 +1,12 @@
+#!/bin/bash
+#SBATCH -t 1-00:00:00
+#SBATCH -p gpu
+#SBATCH --export=NONE
+
+. scripts/init-cartesius.sh
+. venv/bin/activate
+
+# train two at the same time to utilize Cartesius's GPUs
+python -u train.py cifar-10 --vgg_name=VGG11 --device=cuda:0 &> output/train-vgg11.log &
+python -u train.py cifar-10 --vgg_name=VGG13 --device=cuda:1 &> output/train-vgg13.log &
+wait

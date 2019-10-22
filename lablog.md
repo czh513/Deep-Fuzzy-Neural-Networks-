@@ -243,8 +243,15 @@ formulae become more natural.
 Moving to Cartesius... the `environment.yaml` file wasn't useable 
 (because... of course :-|) so I had to install packages manually.
 
-TODO: measure average confidence on **only perturbed** images
+# Tue 22 Oct
 
-TODO: move to Cartesius
+Training a few baseline model (VGG11 and VGG13) on Cartesius so that
+I know what kind of performance can be expected in how much time.
+
+
+
+TODO: evaluate elliptical
+
+TODO: measure average confidence on **only perturbed** images **under max-confidence attack**.
 
 TODO: blackbox attack: https://github.com/tensorflow/cleverhans/blob/688fe64de5bda82895cc8729348a5d761c5e7813/tests_tf/test_mnist_blackbox.py

@@ -48,25 +48,27 @@ class ReLog(nn.Module):
     def extra_repr(self):
         return 'n=%.2f' % (self.n)
 
-curvature_multiplier = None
+curvature_multiplier_start = 0
+curvature_multiplier_stop = 1
+curvature_multiplier_inc = 0.001
 
-def inc_curvature_multiplier(inc=0.001):
-    global curvature_multiplier
-    curvature_multiplier = curvature_multiplier or 0
-    curvature_multiplier = min(curvature_multiplier + inc, 1)
-
-def reset_curvature_multiplier(val=0):
-    global curvature_multiplier
-    curvature_multiplier = val
+def update_curvature_multiplier(m):
+    if m.training:
+        m.multiplier = min(
+            curvature_multiplier_stop, 
+            m.multiplier + curvature_multiplier_inc, 
+        )
+    return max(0, m.multiplier)
 
 class Spherical(nn.Linear):
 
+    def __init__(self, *args, **kwargs):
+        super(Spherical, self).__init__(*args, **kwargs)
+        self.multiplier = curvature_multiplier_start
+
     def forward(self, input):
-        global curvature_multiplier
-        if self.training and curvature_multiplier is not None:
-            self.multiplier = curvature_multiplier
         output = super(Spherical, self).forward(input)
-        a = 0.5 * self.multiplier
+        a = 0.5 * update_curvature_multiplier(self)
         output += -a * (input*input).mean(axis=1, keepdim=True) + a
         return output
 
@@ -76,16 +78,14 @@ class Elliptical(nn.Linear):
         super(Elliptical, self).__init__(*args, **kwargs)
         kwargs['bias'] = False
         self._quadratic = nn.Linear(*args, **kwargs)
+        self.multiplier = curvature_multiplier_start
 
     def forward(self, input):
-        global curvature_multiplier
-        if self.training and curvature_multiplier is not None:
-            self.multiplier = curvature_multiplier
         linear_term = super(Elliptical, self).forward(input)
         with torch.no_grad():
-            self._quadratic.weight.abs_()
+            self._quadratic.weight.abs_() # TODO: try clipping here, abs after initialization
         quadratic_term = self._quadratic.forward(input*input)
-        a = self.multiplier
+        a = update_curvature_multiplier(self)
         return -a * quadratic_term + a + linear_term
 
 class SphericalCNN(nn.Conv2d):
@@ -93,6 +93,7 @@ class SphericalCNN(nn.Conv2d):
     def __init__(self, in_channels, out_channels, kernel_size, **kwargs):
         super(SphericalCNN, self).__init__(in_channels, out_channels, kernel_size, **kwargs)
         kwargs['bias'] = False
+        self.multiplier = curvature_multiplier_start
         self._cnn_mean = nn.Conv2d(in_channels, out_channels, kernel_size, **kwargs)
         if isinstance(kernel_size, (tuple,list)):
             w, h = kernel_size
@@ -103,11 +104,8 @@ class SphericalCNN(nn.Conv2d):
         self._cnn_mean.weight.fill_(1/float(n_elems))
 
     def forward(self, input):
-        global curvature_multiplier
-        if self.training and curvature_multiplier is not None:
-            self.multiplier = curvature_multiplier
         output = super(SphericalCNN, self).forward(input)
-        a = 0.5 * self.multiplier
+        a = 0.5 * update_curvature_multiplier(self)
         output += -a * self._cnn_mean.forward(input*input) + a
         return output
 
@@ -116,17 +114,15 @@ class EllipticalCNN(nn.Conv2d):
     def __init__(self, in_channels, out_channels, kernel_size, **kwargs):
         super(EllipticalCNN, self).__init__(in_channels, out_channels, kernel_size, **kwargs)
         kwargs['bias'] = False
+        self.multiplier = curvature_multiplier_start
         self._quadratic = nn.Conv2d(in_channels, out_channels, kernel_size, **kwargs)
 
     def forward(self, input):
-        global curvature_multiplier
-        if self.training and curvature_multiplier is not None:
-            self.multiplier = curvature_multiplier
         linear_term = super(EllipticalCNN, self).forward(input)
         with torch.no_grad():
-            self._quadratic.weight.abs_()
+            self._quadratic.weight.abs_() # TODO: try clipping here, abs after initialization
         quadratic_term = self._quadratic.forward(input*input)
-        a = self.multiplier
+        a = update_curvature_multiplier(self)
         return -a * quadratic_term + a + linear_term
 
 class FoldingMaxout(nn.Module):
@@ -277,8 +273,9 @@ class VGG(nn.Module):
 
     def __init__(self, vgg_name="VGG11", use_relog=False, relog_n=10, use_maxout=None, max_folding_factor=4, 
                  min_folding_factor=1, use_sigmoid_out=False, use_batchnorm=True, use_homemade_initialization=False,
-                 use_spherical=False):
+                 use_spherical=False, use_elliptical=False):
         super(VGG, self).__init__()
+        assert not (use_spherical and use_elliptical), "Can't use both spherical and elliptical at the same time"
         self.use_maxout = use_maxout
         self.use_relog = use_relog
         self.relog_n = relog_n
@@ -289,6 +286,7 @@ class VGG(nn.Module):
         self.use_batchnorm = use_batchnorm
         self.use_homemade_initialization = use_homemade_initialization
         self.use_spherical = use_spherical
+        self.use_elliptical = use_elliptical
 
         self.n_classes = 10
         self.weights = []
@@ -301,13 +299,25 @@ class VGG(nn.Module):
         self.classifier = nn.Sequential(*classifier)
 
     def dense(self, *args, **kwargs):
-        module = (Spherical if self.use_spherical else nn.Linear)(*args, **kwargs)
+        if self.use_spherical:
+            f = Spherical
+        elif self.use_elliptical:
+            f = Elliptical
+        else:
+            f = nn.Linear
+        module = f(*args, **kwargs)
         if self.use_homemade_initialization:
             module.register_forward_pre_hook(DynamicInitializer())
         return module
 
     def conv(self, *args, **kwargs):
-        module = (SphericalCNN if self.use_spherical else nn.Conv2d)(*args, **kwargs)
+        if self.use_spherical:
+            f = SphericalCNN
+        elif self.use_elliptical:
+            f = EllipticalCNN
+        else:
+            f = nn.Conv2d
+        module = f(*args, **kwargs)
         if self.use_homemade_initialization:
             module.register_forward_pre_hook(DynamicInitializer())
         return module
