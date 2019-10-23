@@ -275,6 +275,20 @@ The script finishes 20 epochs quite fast... Trying deeper models:
 Turns out that deeper models fail to learn. Is it because of numerical
 stability? Reducing learning rate to 0.01.
 
+    commit: bb6f5223633f941781f6b733c90ee688ddcebcb0
+
+# Wed 23 Oct
+
+The script managed to finish 50 epochs within 1 hour :-O 
+
+    Started: Tue Oct 22 22:46:00 CEST 2019
+    slurmstepd: error: *** JOB 7008708 ON gcn61 CANCELLED AT 2019-10-22T23:34:10 ***
+
+Accuracy topped at epoch 49 of VGG16, reached 90%.
+
+
+
+
 TODO: compare neurons of ReLU and logic nets to see if the latter is
 "more logic" (what would that mean...?)
 

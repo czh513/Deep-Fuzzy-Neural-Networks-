@@ -150,111 +150,115 @@ class FoldingMaxout(nn.Module):
         return 'use_min=%s, k=%s' % (self.use_min, self.k)
     
 
-class CNN(nn.Module):
+config_defaults = {
+    'use_relog': False, 'use_maxout': '', 'max_folding_factor': 4, 'min_folding_factor': 2,
+    'conv1_out_channels': 16, 'conv2_out_channels': 32, 'use_sigmoid_out': False, 
+    'use_spherical': False, 'use_elliptical': False, 'use_batchnorm': False,
+    'use_homemade_initialization': False
+}
 
-    def __init__(self, use_relog=False, use_maxout='', max_folding_factor=4, min_folding_factor=2,
-                 conv1_out_channels=16, conv2_out_channels=32, use_sigmoid_out=False, dropout_prob=0,
-                 use_spherical=False, use_elliptical=False):
-        assert not (use_spherical and use_elliptical), "Can't use elliptical and spherical units at the same time"
-        super(CNN, self).__init__()
-        self.use_maxout = use_maxout
-        self.use_relog = use_relog
-        self.max_folding_factor = max_folding_factor if 'max' in use_maxout else 1
-        self.min_folding_factor = min_folding_factor if 'min' in use_maxout else 1
-        self.folding_factor = self.max_folding_factor * self.min_folding_factor
-        self.conv1_out_channels = conv1_out_channels
-        self.conv2_out_channels = conv2_out_channels
-        self.use_sigmoid_out = use_sigmoid_out
-        self.n_classes = 10
-        self.dropout_prob = dropout_prob
-        self.use_spherical = use_spherical
-        self.use_elliptical = use_elliptical
+class ExperimentalModel(nn.Module):
+
+    def __init__(self, **kwargs):
+        super(ExperimentalModel, self).__init__()
+        assert all(k in config_defaults for k in kwargs)
+        self.conf = {**config_defaults, **kwargs}
+        assert not (self.conf['use_spherical'] and self.conf['use_elliptical']), \
+                "Can't use elliptical and spherical units at the same time"
+        if 'max' not in self.conf['use_maxout']:
+            self.conf['max_folding_factor'] = 1
+        if 'min' not in self.conf['use_maxout']:
+            self.conf['min_folding_factor'] = 1
+        self.conf['folding_factor'] = self.conf['max_folding_factor'] * self.conf['min_folding_factor']
+
+    def extract_weights_and_bias(self, layers):
         self.weights = []
         self.bias = []
-
-        conv1_modules = self.build_conv1() + [nn.MaxPool2d(kernel_size=2)]
-        self.conv1 = nn.Sequential(*conv1_modules)
-        conv2_modules = self.build_conv2() + [nn.MaxPool2d(2)]
-        self.conv2 = nn.Sequential(*conv2_modules)
-        self.out = self.build_output()
+        for layer in layers:
+            if isinstance(layer, (Elliptical, EllipticalCNN)):
+                self.weights.append(layer._quadratic)
+            self.weights.append(layer.weight)
+            self.bias.append(layer.bias)
 
     def dense(self, *args, **kwargs):
-        if self.use_spherical:
+        if self.conf['use_spherical']:
             f = Spherical
-        elif self.use_elliptical:
+        elif self.conf['use_elliptical']:
             f = Elliptical
         else:
             f = nn.Linear
-        return f(*args, **kwargs)
+        module = f(*args, **kwargs)
+        if self.conf['use_homemade_initialization']:
+            module.register_forward_pre_hook(DynamicInitializer())
+        return module
 
     def conv(self, *args, **kwargs):
-        if self.use_spherical:
+        if self.conf['use_spherical']:
             f = SphericalCNN
-        elif self.use_elliptical:
+        elif self.conf['use_elliptical']:
             f = EllipticalCNN
         else:
             f = nn.Conv2d
-        return f(*args, **kwargs)
+        module = f(*args, **kwargs)
+        if self.conf['use_homemade_initialization']:
+            module.register_forward_pre_hook(DynamicInitializer())
+        return module
 
     def activation_func(self):
-        return ReLog(inplace=True) if self.use_relog else nn.ReLU(inplace=True)
-
-    def dropout(self):
-        return nn.Dropout(self.dropout_prob, inplace=True)
-
-    def build_conv1(self):
-        actual_out_channels = self.conv1_out_channels * self.folding_factor
-        cnn = self.conv(
-                    in_channels=1,
-                    out_channels=actual_out_channels,
-                    kernel_size=5,              # filter size
-                    stride=1,                   # filter movement/step
-                    padding=2,                  
-                )
-        self.weights.append(cnn.weight)
-        self.bias.append(cnn.bias)
-        return self.wrap_linear(cnn)
-        
-    def build_conv2(self):
-        actual_input_channels = self.conv1_out_channels
-        actual_out_channels = self.conv2_out_channels * self.folding_factor
-        cnn = self.conv(actual_input_channels, actual_out_channels, 5, stride=1, padding=2)
-        self.weights.append(cnn.weight)
-        self.bias.append(cnn.bias)
-        return self.wrap_linear(cnn)
-        
-    def build_output(self):
-        actual_input_channels = self.conv2_out_channels * 7 * 7
-        out = self.dense(actual_input_channels, self.n_classes * self.folding_factor)
-        self.weights.append(out.weight)
-        self.bias.append(out.bias)
-        modules = self.wrap_linear(out, activ=False)
-        if self.use_sigmoid_out:
-            modules += (nn.Sigmoid(),)
-        return nn.Sequential(*modules)
+        return ReLog(inplace=True) if self.conf['use_relog'] else nn.ReLU(inplace=True)
 
     def wrap_linear(self, linear, activ=True):
         assert not isinstance(linear, list)
         modules = [linear]
-        if self.dropout_prob > 0:
-            modules.insert(0, self.dropout())
-        if self.use_maxout == 'max':
-            maxout = FoldingMaxout(self.folding_factor, dim=1)
+        if self.conf['use_maxout'] == 'max':
+            maxout = FoldingMaxout(self.conf['folding_factor'], dim=1)
             modules.append(maxout)                
-        elif self.use_maxout == 'min':
-            minout = FoldingMaxout(self.folding_factor, dim=1, use_min=True)
+        elif self.conf['use_maxout'] == 'min':
+            minout = FoldingMaxout(self.conf['folding_factor'], dim=1, use_min=True)
             modules.append(minout)                
-        elif self.use_maxout == 'minmax':
-            minout = FoldingMaxout(self.min_folding_factor, dim=1, use_min=True)
-            maxout = FoldingMaxout(self.max_folding_factor, dim=1)
+        elif self.conf['use_maxout'] == 'minmax':
+            minout = FoldingMaxout(self.conf['min_folding_factor'], dim=1, use_min=True)
+            maxout = FoldingMaxout(self.conf['max_folding_factor'], dim=1)
             modules.extend([minout, maxout])
         if activ:
             modules.append(self.activation_func())
         return modules
 
+
+class CNN(ExperimentalModel):
+
+    def __init__(self, **kwargs):
+        super(CNN, self).__init__(**kwargs)
+        self.n_classes = 10
+        # first CNN
+        actual_out_channels = self.conv1_out_channels * self.conf['folding_factor']
+        cnn1 = self.conv(
+            in_channels=1,
+            out_channels=actual_out_channels,
+            kernel_size=5,              # filter size
+            stride=1,                   # filter movement/step
+            padding=2,                  
+        )
+        # second CNN
+        actual_input_channels = self.conv1_out_channels
+        actual_out_channels = self.conv2_out_channels * self.conf['folding_factor']
+        cnn2 = self.conv(actual_input_channels, actual_out_channels, 5, stride=1, padding=2)
+        # output
+        actual_input_channels = self.conv2_out_channels * 7 * 7
+        out = self.dense(actual_input_channels, self.n_classes * self.conf['folding_factor'])
+        self.extract_weights_and_bias([self.conv1, self.conv2, self.out])
+
+        self.features = nn.Sequential(
+            self.wrap_linear(cnn1) + [nn.MaxPool2d(kernel_size=2)]
+            + self.wrap_linear(cnn2) + [nn.MaxPool2d(kernel_size=2)]
+        )
+        self.out = nn.Sequential(
+            self.wrap_linear(out, activ=False) 
+            + ([nn.Sigmoid()] if self.conf['use_sigmoid_out'] else [])
+        )
+
     def forward(self, x):
-        x = self.conv1(x)
-        x = self.conv2(x)
+        x = self.features(x)
         x = x.view(x.size(0), -1) # flatten the output of conv2 to (batch_size, 32 * 7 * 7)
         output = self.out(x)
         return output, x # return last layer for visualization
@@ -269,99 +273,38 @@ cfg = {
     'VGG19': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 256, 'M', 512, 512, 512, 512, 'M', 512, 512, 512, 512, 'M'],
 }
 
-class VGG(nn.Module):
+class VGG(ExperimentalModel):
 
-    def __init__(self, vgg_name="VGG11", use_relog=False, relog_n=10, use_maxout=None, max_folding_factor=4, 
-                 min_folding_factor=1, use_sigmoid_out=False, use_batchnorm=True, use_homemade_initialization=False,
-                 use_spherical=False, use_elliptical=False):
-        super(VGG, self).__init__()
-        assert not (use_spherical and use_elliptical), "Can't use both spherical and elliptical at the same time"
-        self.use_maxout = use_maxout
-        self.use_relog = use_relog
-        self.relog_n = relog_n
-        self.max_folding_factor = max_folding_factor
-        self.min_folding_factor = min_folding_factor
-        self.folding_factor = max_folding_factor * min_folding_factor if self.use_maxout else 1
-        self.use_sigmoid_out = use_sigmoid_out
-        self.use_batchnorm = use_batchnorm
-        self.use_homemade_initialization = use_homemade_initialization
-        self.use_spherical = use_spherical
-        self.use_elliptical = use_elliptical
-
+    def __init__(self, vgg_name="VGG11", **kwargs):
+        super(VGG, self).__init__(**kwargs)
         self.n_classes = 10
-        self.weights = []
-        self.bias = []
-        self.features, last_layer_size = self._make_layers(cfg[vgg_name])
-        classifier = self.dense(last_layer_size, 10 * self.folding_factor)
-        self.weights.append(classifier.weight)
-        self.bias.append(classifier.bias)
-        classifier = self.append_maxout([classifier])
-        self.classifier = nn.Sequential(*classifier)
-
-    def dense(self, *args, **kwargs):
-        if self.use_spherical:
-            f = Spherical
-        elif self.use_elliptical:
-            f = Elliptical
-        else:
-            f = nn.Linear
-        module = f(*args, **kwargs)
-        if self.use_homemade_initialization:
-            module.register_forward_pre_hook(DynamicInitializer())
-        return module
-
-    def conv(self, *args, **kwargs):
-        if self.use_spherical:
-            f = SphericalCNN
-        elif self.use_elliptical:
-            f = EllipticalCNN
-        else:
-            f = nn.Conv2d
-        module = f(*args, **kwargs)
-        if self.use_homemade_initialization:
-            module.register_forward_pre_hook(DynamicInitializer())
-        return module
-
-    def activation_func(self):
-        return ReLog(self.relog_n, inplace=True) if self.use_relog else nn.ReLU(inplace=True)
+        self.features, conv_layers, last_layer_size = self._make_layers(cfg[vgg_name])
+        classifier = self.dense(last_layer_size, 10 * self.conf['folding_factor'])
+        self.classifier = nn.Sequential(*self.wrap_linear(classifier, activ=False))
+        self.extract_weights_and_bias(conv_layers + [classifier])
 
     def forward(self, x):
         out = self.features(x)
         out = out.view(out.size(0), -1)
         out = self.classifier(out)
-        if self.use_sigmoid_out:
+        if self.conf['use_sigmoid_out']:
             out = nn.Sigmoid()(out)
         return out
 
     def _make_layers(self, cfg):
-        layers = []
+        layers, conv_layers = [], []
         in_channels = 3
         for x in cfg:
             if x == 'M':
                 layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
             elif isinstance(x, int):
-                layers += [self.conv(in_channels, 
-                                          x * self.folding_factor, kernel_size=3, padding=1)]
-                if self.use_batchnorm:
-                    layers += [nn.BatchNorm2d(x * self.folding_factor)]
-                layers += [self.activation_func()]
-                self.append_maxout(layers)
+                conv = self.conv(in_channels, x * self.conf['folding_factor'], kernel_size=3, padding=1)
+                conv_layers.append(conv)
+                layers += self.wrap_linear(conv)
+                if self.conf['use_batchnorm']:
+                    layers += [nn.BatchNorm2d(x * self.conf['folding_factor'])]
                 in_channels = x
             else:
                 raise "Unrecognized config token: %s" % str(x)
-            self.weights.extend(m.weight for m in layers if hasattr(m, 'weight'))
-            self.bias.extend(m.bias for m in layers if hasattr(m, 'bias'))
         layers += [nn.AvgPool2d(kernel_size=1, stride=1)]
-        return nn.Sequential(*layers), in_channels
-
-    def append_maxout(self, layers):
-        if self.use_maxout == 'max':
-            layers += [FoldingMaxout(self.max_folding_factor, dim=1)]
-        elif self.use_maxout == 'min':
-            layers += [FoldingMaxout(self.min_folding_factor, dim=1, use_min=True)]
-        elif self.use_maxout == 'minmax':
-            layers += [
-                FoldingMaxout(self.min_folding_factor, dim=1, use_min=True),
-                FoldingMaxout(self.max_folding_factor, dim=1)
-            ] 
-        return layers
+        return nn.Sequential(*layers), conv_layers, in_channels

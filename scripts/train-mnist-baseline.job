@@ -1,0 +1,13 @@
+#!/bin/bash
+#SBATCH -t 1-00:00:00
+#SBATCH -p gpu
+#SBATCH --export=NONE
+
+. scripts/init-cartesius.sh
+. venv/bin/activate
+
+echo -n "Started: " && date
+
+python -u train.py mnist --device=cuda:0 --n_epochs=50 --lr=0.01
+
+echo -n "Finished: " && date
