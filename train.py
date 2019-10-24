@@ -289,7 +289,7 @@ class TrainingService_CIFAR10(object):
         return last_train_acc, last_test_acc
 
 
-def train(dataset, name=None, device='cpu', normalize_data=True, **kwargs):
+def train(dataset, out_path=None, device='cpu', normalize_data=True, **kwargs):
     if 'cuda' in device: 
         assert torch.cuda.is_available()
     print("Using device: %s" % device)
@@ -299,8 +299,7 @@ def train(dataset, name=None, device='cpu', normalize_data=True, **kwargs):
         ts = TrainingService_CIFAR10(home_dir='.', device=device, 
                                      normalize_data=normalize_data)
     cnn = ts.build_and_train(**kwargs)
-    if name:
-        out_path = os.path.join(self.home_dir, 'output', '%s.pkl' % name)
+    if out_path:
         torch.save(cnn, out_path)
         print('Model saved to %s' % out_path)
 

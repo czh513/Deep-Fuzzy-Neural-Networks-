@@ -286,11 +286,33 @@ The script managed to finish 50 epochs within 1 hour :-O
 
 Accuracy topped at epoch 49 of VGG16, reached 90%.
 
+Unified APIs of two training services and two models so that my VGG models can use
+the same modifications from the other models. Now that it's done, I can honestly write one
+common description about the modifications in my paper.
+After the extensive changes, it seems to work still:
+
+    Epoch: 23
+    0 / 391 : Loss: 0.241 | Acc: 91.406% (117/128)
+    150 / 391 : Loss: 0.206 | Acc: 92.772% (17931/19328)
+    300 / 391 : Loss: 0.217 | Acc: 92.309% (35565/38528)
+    Test eval: Loss: 0.451 | Acc: 86.310% (8631/10000)
+
+# Thu 24 Oct
+
+Started training baseline models again:
+
+    [minhle@int2 newlogic]$ squeue | grep minh
+            7014019       gpu train-ci   minhle PD       0:00      1 (Priority)
+            7014021       gpu train-mn   minhle PD       0:00      1 (Priority)
 
 
 
 TODO: compare neurons of ReLU and logic nets to see if the latter is
 "more logic" (what would that mean...?)
+--> Illustrating difference between distributed repr and localist repr:
+
+    Interpolation plot: Plot activation along two axes: a digit x to a digit y and the same digit x to digit z. Distributed repr will result in smooth transition whereas localist repr small regions of strong activation surrounded by large swaths of zero activation.
+
 
 TODO: evaluate elliptical
 

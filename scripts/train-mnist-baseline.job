@@ -8,6 +8,6 @@
 
 echo -n "Started: " && date
 
-python -u train.py mnist --device=cuda:0 --n_epochs=50 --lr=0.01
+python -u train.py mnist --device=cuda:0 --n_epochs=20 --lr=0.001 --out_path=$1/cnn.pkl
 
 echo -n "Finished: " && date

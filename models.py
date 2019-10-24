@@ -231,7 +231,7 @@ class CNN(ExperimentalModel):
         super(CNN, self).__init__(**kwargs)
         self.n_classes = 10
         # first CNN
-        actual_out_channels = self.conv1_out_channels * self.conf['folding_factor']
+        actual_out_channels = self.conf['conv1_out_channels'] * self.conf['folding_factor']
         cnn1 = self.conv(
             in_channels=1,
             out_channels=actual_out_channels,
@@ -240,22 +240,22 @@ class CNN(ExperimentalModel):
             padding=2,                  
         )
         # second CNN
-        actual_input_channels = self.conv1_out_channels
-        actual_out_channels = self.conv2_out_channels * self.conf['folding_factor']
+        actual_input_channels = self.conf['conv1_out_channels']
+        actual_out_channels = self.conf['conv2_out_channels'] * self.conf['folding_factor']
         cnn2 = self.conv(actual_input_channels, actual_out_channels, 5, stride=1, padding=2)
         # output
-        actual_input_channels = self.conv2_out_channels * 7 * 7
+        actual_input_channels = self.conf['conv2_out_channels'] * 7 * 7
         out = self.dense(actual_input_channels, self.n_classes * self.conf['folding_factor'])
-        self.extract_weights_and_bias([self.conv1, self.conv2, self.out])
+        self.extract_weights_and_bias([cnn1, cnn2, out])
 
-        self.features = nn.Sequential(
+        self.features = nn.Sequential(*(
             self.wrap_linear(cnn1) + [nn.MaxPool2d(kernel_size=2)]
             + self.wrap_linear(cnn2) + [nn.MaxPool2d(kernel_size=2)]
-        )
-        self.out = nn.Sequential(
+        ))
+        self.out = nn.Sequential(*(
             self.wrap_linear(out, activ=False) 
             + ([nn.Sigmoid()] if self.conf['use_sigmoid_out'] else [])
-        )
+        ))
 
     def forward(self, x):
         x = self.features(x)

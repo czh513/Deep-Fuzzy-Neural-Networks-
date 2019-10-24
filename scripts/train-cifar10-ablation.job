@@ -1,0 +1,44 @@
+#!/bin/bash
+#SBATCH -t 1-00:00:00
+#SBATCH -p gpu
+#SBATCH --export=NONE
+
+. scripts/init-cartesius.sh
+. venv/bin/activate
+
+echo -n "Started: " && date
+
+# for development
+shared='--model_type=VGG4 --n_epochs=5'
+# shared='--model_type=VGG16 --n_epochs=50'
+
+# can't share the following part between cifar10 and mnist because I need to manipulate batchnorm and maybe normalize_data here
+python -u train.py cifar-10 $shared --device=cuda:0 --out_path=$1/cnn-relu.pkl --use_batchnorm=True &
+python -u train.py cifar-10 $shared --device=cuda:1 --out_path=$1/cnn-relog.pkl --use_relog=True --normalize_data=False &
+wait
+
+python -u train.py cifar-10 $shared --device=cuda:0 --out_path=$1/cnn-relog-maxout_2.pkl --use_relog=True \
+    --use_maxout=max --max_folding_factor=2 &
+python -u train.py cifar-10 $shared --device=cuda:1 --out_path=$1/cnn-relog-minmaxout_4_2.pkl \
+    --use_relog=True --use_maxout=minmax --max_folding_factor=2 --min_folding_factor=4 &
+wait
+
+python -u train.py cifar-10 $shared --device=cuda:0 --out_path=$1/cnn-relog-minmaxout_4_2-sigmoid_out.pkl \
+    --use_relog=True --use_maxout=minmax --max_folding_factor=2 --min_folding_factor=4 \
+    --use_sigmoid_out=True &
+python -u train.py cifar-10 $shared --device=cuda:1 --out_path=$1/cnn-relog-spherical-minmaxout_4_2-sigmoid_out.pkl \
+    --use_relog=True --use_spherical=True --use_sigmoid_out=True \
+    --use_maxout=minmax --max_folding_factor=2 --min_folding_factor=4 &
+wait
+
+python -u train.py cifar-10 $shared --device=cuda:0 --out_path=$1/cnn-relog-spherical-minmaxout_4_2-sigmoid_out-max_fit_l1_1.pkl \
+    --use_relog=True --use_spherical=True --use_sigmoid_out=True \
+    --use_maxout=minmax --max_folding_factor=2 --min_folding_factor=4 \
+    --regularization=max-fit --bias_l1=0.1 &
+python -u train.py cifar-10 $shared --device=cuda:1 --out_path=$1/cnn-relog-spherical-minmaxout_4_2-sigmoid_out-max_fit_l1_1-scrambling.pkl \
+    --use_relog=True --use_spherical=True --use_sigmoid_out=True \
+    --use_maxout=minmax --max_folding_factor=2 --min_folding_factor=4 \
+    --regularization=max-fit --bias_l1=0.1 --use_scrambling=True &
+wait
+
+echo -n "Finished: " && date
