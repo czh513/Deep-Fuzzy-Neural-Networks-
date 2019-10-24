@@ -7,3 +7,7 @@ output/baseline-mnist, output/baseline-mnist/cnn.pkl <- train.py
     rm -rf $OUTPUT0 && mkdir -p $OUTPUT0
     sbatch scripts/train-mnist-baseline.job $OUTPUT0 && echo "Job submitted, please wait for >10 min"
 
+output/ablation-cifar10 <- train.py
+    rm -rf $OUTPUT0 && mkdir -p $OUTPUT0
+    sbatch scripts/train-cifar10-ablation.job $OUTPUT0 && echo "Job submitted, please wait for >1 day"
+

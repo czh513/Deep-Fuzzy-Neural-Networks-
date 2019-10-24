@@ -60,6 +60,16 @@ def update_curvature_multiplier(m):
         )
     return max(0, m.multiplier)
 
+class AbsLinear(nn.Linear):
+    ''' A linear module that always applies abs() on the weight '''
+    def forward(self, input):
+        return F.linear(input, self.weight.abs(), self.bias)
+
+class AbsConv2d(nn.Conv2d):
+    ''' A convolutional module that always applies abs() on the weight '''
+    def forward(self, input):
+        return self.conv2d_forward(input, self.weight.abs())
+
 class Spherical(nn.Linear):
 
     def __init__(self, *args, **kwargs):
@@ -77,13 +87,11 @@ class Elliptical(nn.Linear):
     def __init__(self, *args, **kwargs):
         super(Elliptical, self).__init__(*args, **kwargs)
         kwargs['bias'] = False
-        self._quadratic = nn.Linear(*args, **kwargs)
         self.multiplier = curvature_multiplier_start
+        self._quadratic = AbsLinear(*args, **kwargs)
 
     def forward(self, input):
         linear_term = super(Elliptical, self).forward(input)
-        with torch.no_grad():
-            self._quadratic.weight.abs_() # TODO: try clipping here, abs after initialization
         quadratic_term = self._quadratic.forward(input*input)
         a = update_curvature_multiplier(self)
         return -a * quadratic_term + a + linear_term
@@ -115,12 +123,10 @@ class EllipticalCNN(nn.Conv2d):
         super(EllipticalCNN, self).__init__(in_channels, out_channels, kernel_size, **kwargs)
         kwargs['bias'] = False
         self.multiplier = curvature_multiplier_start
-        self._quadratic = nn.Conv2d(in_channels, out_channels, kernel_size, **kwargs)
+        self._quadratic = AbsConv2d(in_channels, out_channels, kernel_size, **kwargs)
 
     def forward(self, input):
         linear_term = super(EllipticalCNN, self).forward(input)
-        with torch.no_grad():
-            self._quadratic.weight.abs_() # TODO: try clipping here, abs after initialization
         quadratic_term = self._quadratic.forward(input*input)
         a = update_curvature_multiplier(self)
         return -a * quadratic_term + a + linear_term
@@ -154,7 +160,7 @@ config_defaults = {
     'use_relog': False, 'use_maxout': '', 'max_folding_factor': 4, 'min_folding_factor': 2,
     'conv1_out_channels': 16, 'conv2_out_channels': 32, 'use_sigmoid_out': False, 
     'use_spherical': False, 'use_elliptical': False, 'use_batchnorm': False,
-    'use_homemade_initialization': False
+    'use_homemade_initialization': False, 'vgg_name': 'VGG16'
 }
 
 class ExperimentalModel(nn.Module):
@@ -176,7 +182,7 @@ class ExperimentalModel(nn.Module):
         self.bias = []
         for layer in layers:
             if isinstance(layer, (Elliptical, EllipticalCNN)):
-                self.weights.append(layer._quadratic)
+                self.weights.append(layer._quadratic.weight)
             self.weights.append(layer.weight)
             self.bias.append(layer.bias)
 
@@ -224,6 +230,12 @@ class ExperimentalModel(nn.Module):
             modules.append(self.activation_func())
         return modules
 
+    def forward(self, x):
+        x = self.features(x)
+        x = x.view(x.size(0), -1)
+        out = self.classifier(x)
+        return out, x
+
 
 class CNN(ExperimentalModel):
 
@@ -252,16 +264,10 @@ class CNN(ExperimentalModel):
             self.wrap_linear(cnn1) + [nn.MaxPool2d(kernel_size=2)]
             + self.wrap_linear(cnn2) + [nn.MaxPool2d(kernel_size=2)]
         ))
-        self.out = nn.Sequential(*(
+        self.classifier = nn.Sequential(*(
             self.wrap_linear(out, activ=False) 
             + ([nn.Sigmoid()] if self.conf['use_sigmoid_out'] else [])
         ))
-
-    def forward(self, x):
-        x = self.features(x)
-        x = x.view(x.size(0), -1) # flatten the output of conv2 to (batch_size, 32 * 7 * 7)
-        output = self.out(x)
-        return output, x # return last layer for visualization
 
 
 cfg = {
@@ -280,16 +286,11 @@ class VGG(ExperimentalModel):
         self.n_classes = 10
         self.features, conv_layers, last_layer_size = self._make_layers(cfg[vgg_name])
         classifier = self.dense(last_layer_size, 10 * self.conf['folding_factor'])
-        self.classifier = nn.Sequential(*self.wrap_linear(classifier, activ=False))
+        self.classifier = nn.Sequential(*(
+            self.wrap_linear(classifier, activ=False)
+            + ([nn.Sigmoid()] if self.conf['use_sigmoid_out'] else [])
+        ))
         self.extract_weights_and_bias(conv_layers + [classifier])
-
-    def forward(self, x):
-        out = self.features(x)
-        out = out.view(out.size(0), -1)
-        out = self.classifier(out)
-        if self.conf['use_sigmoid_out']:
-            out = nn.Sigmoid()(out)
-        return out
 
     def _make_layers(self, cfg):
         layers, conv_layers = [], []
@@ -302,7 +303,7 @@ class VGG(ExperimentalModel):
                 conv_layers.append(conv)
                 layers += self.wrap_linear(conv)
                 if self.conf['use_batchnorm']:
-                    layers += [nn.BatchNorm2d(x * self.conf['folding_factor'])]
+                    layers += [nn.BatchNorm2d(x)]
                 in_channels = x
             else:
                 raise "Unrecognized config token: %s" % str(x)

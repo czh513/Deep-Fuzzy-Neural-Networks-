@@ -60,41 +60,43 @@ def tmean(vals):
     vals = [val.view(-1) for val in vals]
     return torch.cat(vals).mean()
 
-def compute_loss(ts, epoch, cnn, train_x, train_y, output, conf):
-    loss_func = nn.MSELoss() if conf['use_sigmoid_out'] else nn.CrossEntropyLoss()
-    if conf['use_sigmoid_out']:
-        train_y = one_hot(train_y, num_classes=self.num_classes).float()
-    loss = loss_func(output, train_y)
-    if conf['use_scrambling'] and epoch >= 1:
-        assert conf['use_sigmoid_out'], "Softmax networks can't handle scrambled input"
-        scramble_x = ts.scramble(train_x)[:train_x.shape[0]]
-        scramble_y = torch.zeros(scramble_x.shape[0], ts.num_classes).to(ts.device)
-        scramble_output, _ = cnn(scramble_x)
-        loss += loss_func(scramble_output, scramble_y)
-    if conf['regularization'] in ('max-fit', 'max-margin') and not conf['use_spherical']:
-        assert (conf['l1'] > 0) or (conf['l2'] > 0), "Strength of regularization must be specified"
-        if conf['l1'] > 0:
-            loss += conf['l1'] * tmean(w.abs() for w in cnn.weights)
-        if l2 > 0:
-            loss += conf['l2'] * tmean(w*w for w in cnn.weights)
-    if conf['regularization'] == 'max-margin' and conf['use_spherical']:
-        assert (conf['bias_l1'] > 0) or (conf['bias_l2'] > 0), \
-            "For max-margin with spherical, strength of bias regularization must be specified"
-        if conf['bias_l1'] > 0:
-            loss += -conf['bias_l1'] * tmean(b for b in cnn.bias) # notice: no abs()
-        if bias_l2 > 0:
-            loss += -conf['bias_l2'] * tmean(b*b.abs() for b in cnn.bias) # notice: signed
-    if conf['regularization'] == 'max-fit':
-        assert (conf['bias_l1'] > 0) or (conf['bias_l2'] > 0), \
-            "For max-fit, strength of bias regularization must be specified"
-        if conf['bias_l1'] > 0:
-            loss += conf['bias_l1'] * tmean(b for b in cnn.bias) # notice: no abs()
-        if conf['bias_l2'] > 0:
-            loss += conf['bias_l2'] * tmean(b*b.abs() for b in cnn.bias) # notice: signed
-    return loss
+class TrainingService(object):
+
+    def compute_loss(self, epoch, cnn, train_x, train_y, output, conf):
+        loss_func = nn.MSELoss() if conf['use_sigmoid_out'] else nn.CrossEntropyLoss()
+        if conf['use_sigmoid_out']:
+            train_y = one_hot(train_y, num_classes=self.num_classes).float()
+        loss = loss_func(output, train_y)
+        if conf['use_scrambling'] and epoch >= 1:
+            assert conf['use_sigmoid_out'], "Softmax networks can't handle scrambled input"
+            scramble_x = self.scramble(train_x)[:train_x.shape[0]]
+            scramble_y = torch.zeros(scramble_x.shape[0], self.num_classes).to(self.device)
+            scramble_output, _ = cnn(scramble_x)
+            loss += loss_func(scramble_output, scramble_y)
+        if conf['regularization'] in ('max-fit', 'max-margin') and not conf['use_spherical']:
+            assert (conf['l1'] > 0) or (conf['l2'] > 0), "Strength of regularization must be specified"
+            if conf['l1'] > 0:
+                loss += conf['l1'] * tmean(w.abs() for w in cnn.weights)
+            if conf['l2'] > 0:
+                loss += conf['l2'] * tmean(w*w for w in cnn.weights)
+        if conf['regularization'] == 'max-margin' and conf['use_spherical']:
+            assert (conf['bias_l1'] > 0) or (conf['bias_l2'] > 0), \
+                "For max-margin with spherical, strength of bias regularization must be specified"
+            if conf['bias_l1'] > 0:
+                loss += -conf['bias_l1'] * tmean(b for b in cnn.bias) # notice: no abs()
+            if conf['bias_l2'] > 0:
+                loss += -conf['bias_l2'] * tmean(b*b.abs() for b in cnn.bias) # notice: signed
+        if conf['regularization'] == 'max-fit':
+            assert (conf['bias_l1'] > 0) or (conf['bias_l2'] > 0), \
+                "For max-fit, strength of bias regularization must be specified"
+            if conf['bias_l1'] > 0:
+                loss += conf['bias_l1'] * tmean(b for b in cnn.bias) # notice: no abs()
+            if conf['bias_l2'] > 0:
+                loss += conf['bias_l2'] * tmean(b*b.abs() for b in cnn.bias) # notice: signed
+        return loss
 
 
-class TrainingService_MNIST(object):
+class TrainingService_MNIST(TrainingService):
 
     def __init__(self, home_dir, gaussian_noise_epsilon=0.3, device='cpu'): 
         self.home_dir = home_dir
@@ -133,7 +135,8 @@ class TrainingService_MNIST(object):
         config_defaults = {
             'use_sigmoid_out': False, 'lr': 0.001,
             'train_batch_size': 64, 'regularization': None, 'l1': 0, 'l2': 0, 
-            'bias_l1': 0, 'bias_l2': 0, 'use_scrambling': False
+            'bias_l1': 0, 'bias_l2': 0, 'use_scrambling': False,
+            'use_spherical': False, 'use_elliptical': False
         }
         train_params = {**config_defaults, **kwargs}
         self.train_loop(cnn, n_epochs, train_params)
@@ -155,7 +158,7 @@ class TrainingService_MNIST(object):
                 output, _ = cnn(train_x)
 
                 optimizer.zero_grad()           # clear gradients for this training step
-                loss = compute_loss(self, epoch, cnn, train_x, train_y, output, conf)
+                loss = self.compute_loss(epoch, cnn, train_x, train_y, output, conf)
                 loss.backward()                 # backpropagation, compute gradients
                 optimizer.step()                # apply gradients
 
@@ -183,7 +186,7 @@ class TrainingService_MNIST(object):
                       % (epoch, loss.item(), train_acc, test_acc))
 
 
-class TrainingService_CIFAR10(object):
+class TrainingService_CIFAR10(TrainingService):
 
     def __init__(self, home_dir, normalize_data, device='cpu', gaussian_noise_epsilon=0.3,
                  num_batches_per_epoch=-1, report_interval=150):
@@ -193,18 +196,18 @@ class TrainingService_CIFAR10(object):
         self.num_batches_per_epoch = num_batches_per_epoch # set to a small value for testing
         self.report_interval = report_interval
         self.scramble = ChoiceScramble([PixelScramble(), BlockScramble(3), BlockScramble(9)])
+        self.num_classes = 10
 
     def prepare_data(self, normalize_data, gaussian_noise_epsilon):
         # Data
         print('==> Preparing data..')
         cifar_stats = ((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
+        # Tried random rotating, gaussian noise, and random erasing as in MNIST 
+        # but models fail to learn. Didn't try them individually.
         transform_train = torchvision.transforms.Compose([
                 torchvision.transforms.RandomCrop(32, padding=4),
                 torchvision.transforms.RandomHorizontalFlip(),
-                torchvision.transforms.RandomRotation(degrees=10), # TODO: do we need this? 
                 torchvision.transforms.ToTensor(),
-                gaussian_noise(gaussian_noise_epsilon), # TODO: do we need this? 
-                torchvision.transforms.RandomErasing(scale=(0.01, 0.05)) # TODO: do we need this? 
         ] + ([torchvision.transforms.Normalize(*cifar_stats)] if normalize_data else []))
         transform_test = torchvision.transforms.Compose([
                 torchvision.transforms.ToTensor(),
@@ -222,8 +225,8 @@ class TrainingService_CIFAR10(object):
         for batch_idx, (inputs, targets) in enumerate(self.trainloader):
             inputs, targets = inputs.to(self.device), targets.to(self.device)
             self.optimizer.zero_grad()
-            outputs = net(inputs)
-            loss = compute_loss(self, epoch, net, inputs, targets, outputs, conf)
+            outputs, _ = net(inputs)
+            loss = self.compute_loss(epoch, net, inputs, targets, outputs, conf)
             loss.backward()
             self.optimizer.step()
 
@@ -247,7 +250,7 @@ class TrainingService_CIFAR10(object):
         with torch.no_grad():
             for batch_idx, (inputs, targets) in enumerate(self.testloader):
                 inputs, targets = inputs.to(self.device), targets.to(self.device)
-                outputs = net(inputs)
+                outputs, _ = net(inputs)
 
                 if conf['use_sigmoid_out']:
                     loss_targets = one_hot(targets, num_classes=10).float()
@@ -276,12 +279,14 @@ class TrainingService_CIFAR10(object):
         config_defaults = {
             'use_sigmoid_out': False, 'lr': 0.01, 'n_epochs': 50,
             'train_batch_size': 128, 'regularization': None, 'l1': 0, 'l2': 0, 
-            'bias_l1': 0, 'bias_l2': 0, 'use_scrambling': False
+            'bias_l1': 0, 'bias_l2': 0, 'use_scrambling': False,
+            'use_spherical': False, 'use_elliptical': False
         }
         conf = {**config_defaults, **kwargs}
         self.trainloader = torch.utils.data.DataLoader(self.trainset, batch_size=conf['train_batch_size'], shuffle=True, num_workers=2)
         self.testloader = torch.utils.data.DataLoader(self.testset, batch_size=256, shuffle=False, num_workers=2)
-        self.optimizer = optim.Adam(net.parameters(), amsgrad=True, lr=conf['lr'])
+        self.optimizer = optim.Adam(net.parameters(), lr=conf['lr'])
+        models.curvature_multiplier_inc = 1e-4
         for epoch in range(conf['n_epochs']):
             # since it takes a looong time to train, we'll save every epoch
             last_train_acc = self.train(net, epoch, conf) 
