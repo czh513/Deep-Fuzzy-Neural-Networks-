@@ -305,6 +305,21 @@ Started training baseline models again:
             7014019       gpu train-ci   minhle PD       0:00      1 (Priority)
             7014021       gpu train-mn   minhle PD       0:00      1 (Priority)
 
+Managed to train miniatured CIFAR-10 models. Now starting to train the real things:
+
+    commit: 318231e5c4dd9d4fe41fbfd2011f6d276cf2494c
+
+    [minhle@gcn4 newlogic]$ drake output/ablation-cifar10
+    The following steps will be run, in order:
+    1: /nfs/home2/minhle/newlogic/././output/ablation-cifar10 <- /nfs/home2/minhle/newlogic/././train.py [timestamped]
+    Confirm? [y/n] y
+    Running 1 steps with concurrence of 1...
+
+    --- 2. Running (timestamped): /nfs/home2/minhle/newlogic/././output/ablation-cifar10 <- /nfs/home2/minhle/newlogic/././train.py
+    Submitted batch job 7017559
+    Job submitted, please wait for >1 day
+    --- 2: /nfs/home2/minhle/newlogic/././output/ablation-cifar10 <- /nfs/home2/minhle/newlogic/././train.py -> done in 0.24s
+    Done (1 steps run).
 
 
 TODO: compare neurons of ReLU and logic nets to see if the latter is
@@ -313,8 +328,230 @@ TODO: compare neurons of ReLU and logic nets to see if the latter is
 
     Interpolation plot: Plot activation along two axes: a digit x to a digit y and the same digit x to digit z. Distributed repr will result in smooth transition whereas localist repr small regions of strong activation surrounded by large swaths of zero activation.
 
+# Fri 25 Oct 2019
 
-TODO: evaluate elliptical
+ReLog models fail to train...
+
+    [minhle@int1 newlogic]$ tail -n 2 output/ablation-cifar10/*.log
+    ==> output/ablation-cifar10/cnn-relog.log <==
+    Test eval: Loss: 4.415 | Acc: 36.610% (3661/10000)
+    Model saved to /nfs/home2/minhle/newlogic/output/ablation-cifar10/cnn-relog.pkl
+
+    ==> output/ablation-cifar10/cnn-relog-maxout_4.log <==
+    150 / 391 : Loss: 1.622 | Acc: 39.238% (7584/19328)
+    300 / 391 : Loss: 1.610 | Acc: 39.766% (15321/38528)
+
+    ==> output/ablation-cifar10/cnn-relog-minmaxout_2_4.log <==
+    150 / 391 : Loss: 2.118 | Acc: 17.219% (3328/19328)
+    300 / 391 : Loss: 2.078 | Acc: 18.008% (6938/38528)
+
+    ==> output/ablation-cifar10/cnn-relu.log <==
+    Test eval: Loss: 0.694 | Acc: 90.840% (9084/10000)
+    Model saved to /nfs/home2/minhle/newlogic/output/ablation-cifar10/cnn-relu.pkl
+
+I had suspected that batchnorm would mess up with ReLog before... Since it doesn't fit
+into the picture of logic-inspired network architecture. Without batchnorm, however,
+the model wouldn't even train since the first epoch. I suspect that since weights and bias
+are initialized around zero, and ReLU/ReLog is strictly positive, a majority of the neurons
+are simply dead on the get-go because of too many negative weights... Since ReLU is unbounded,
+strong activations can save some neurons but ReLog is roughly bounded on 1...
+Fix: instead of BatchNorm, subtract 0.5 to all the output of ReLog. Trying it out:
+
+    [minhle@int1 newlogic]$ sbatch scripts/debug.job
+    Submitted batch job 7018130
+
+The train/test accuracy increases until epoch 20 and then fluctuate till the last epoch...
+Loss fluctuates too... Decrease learning rate, maybe?
+
+Tried decreasing learning rate, enable "dynamic initialization" (though the implementation
+is imperfect), but ReLog still doesn't train or display large fluctuation. I succeeded once
+with ReLog+"quadratic", try again with elliptical maybe? Last successful training:
+
+    %%time
+    ts_relog.build_and_train('cnn-cifar10-relog-kernel', use_quadratic_kernel=True,
+                            use_relog=True, strictening=0.01, use_sigmoid_out=True,
+                            use_batchnorm=False, use_homemade_initialization=True)
+
+    VGG(
+    (features): Sequential(
+        (0): QuadraticKernel()
+        (1): Conv2d(6, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+        (2): ReLog(n=10.00)
+        (3): MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)
+        (4): QuadraticKernel()
+        (5): Conv2d(128, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+        (6): ReLog(n=10.00)
+        (7): MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)
+        (8): QuadraticKernel()
+        (9): Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+        (10): ReLog(n=10.00)
+        (11): QuadraticKernel()
+        (12): Conv2d(512, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+        (13): ReLog(n=10.00)
+        (14): MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)
+        (15): QuadraticKernel()
+        (16): Conv2d(512, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+        (17): ReLog(n=10.00)
+        (18): QuadraticKernel()
+        (19): Conv2d(1024, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+        (20): ReLog(n=10.00)
+        (21): MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)
+        (22): QuadraticKernel()
+        (23): Conv2d(1024, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+        (24): ReLog(n=10.00)
+        (25): QuadraticKernel()
+        (26): Conv2d(1024, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
+        (27): ReLog(n=10.00)
+        (28): MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1, ceil_mode=False)
+        (29): AvgPool2d(kernel_size=1, stride=1, padding=0)
+    )
+    (classifier): Sequential(
+        (0): Linear(in_features=512, out_features=10, bias=True)
+    )
+    )
+
+    Epoch: 0
+    0 / 391 : Loss: 0.291 | Acc: 8.594% (11/128)
+    150 / 391 : Loss: 0.109 | Acc: 9.799% (1894/19328)
+    300 / 391 : Loss: 0.073 | Acc: 10.317% (3975/38528)
+    Model saved to /content/gdrive/My Drive/Colab Notebooks/newlogic/output/cnn-cifar10-relu-kernel.pkl
+    Test eval: Loss: 0.088 | Acc: 16.910% (1691/10000)
+
+    Epoch: 1
+    0 / 391 : Loss: -0.044 | Acc: 16.406% (21/128)
+    150 / 391 : Loss: -0.077 | Acc: 21.740% (4202/19328)
+    300 / 391 : Loss: -0.111 | Acc: 24.533% (9452/38528)
+    Model saved to /content/gdrive/My Drive/Colab Notebooks/newlogic/output/cnn-cifar10-relu-kernel.pkl
+    Test eval: Loss: 0.079 | Acc: 33.410% (3341/10000)
+
+    Epoch: 2
+    0 / 391 : Loss: -0.222 | Acc: 32.031% (41/128)
+    150 / 391 : Loss: -0.254 | Acc: 32.776% (6335/19328)
+    300 / 391 : Loss: -0.288 | Acc: 33.794% (13020/38528)
+    Model saved to /content/gdrive/My Drive/Colab Notebooks/newlogic/output/cnn-cifar10-relu-kernel.pkl
+    Test eval: Loss: 0.074 | Acc: 39.410% (3941/10000)
+
+    Epoch: 3
+    0 / 391 : Loss: -0.393 | Acc: 34.375% (44/128)
+    150 / 391 : Loss: -0.428 | Acc: 37.221% (7194/19328)
+    300 / 391 : Loss: -0.461 | Acc: 37.832% (14576/38528)
+    Model saved to /content/gdrive/My Drive/Colab Notebooks/newlogic/output/cnn-cifar10-relu-kernel.pkl
+    Test eval: Loss: 0.073 | Acc: 40.020% (4002/10000)
+
+    Epoch: 4
+    0 / 391 : Loss: -0.569 | Acc: 39.062% (50/128)
+    150 / 391 : Loss: -0.601 | Acc: 39.280% (7592/19328)
+    300 / 391 : Loss: -0.634 | Acc: 39.444% (15197/38528)
+    Model saved to /content/gdrive/My Drive/Colab Notebooks/newlogic/output/cnn-cifar10-relu-kernel.pkl
+    Test eval: Loss: 0.071 | Acc: 42.010% (4201/10000)
+
+    Epoch: 5
+    0 / 391 : Loss: -0.738 | Acc: 35.938% (46/128)
+    150 / 391 : Loss: -0.773 | Acc: 40.910% (7907/19328)
+    300 / 391 : Loss: -0.806 | Acc: 41.183% (15867/38528)
+    Model saved to /content/gdrive/My Drive/Colab Notebooks/newlogic/output/cnn-cifar10-relu-kernel.pkl
+    Test eval: Loss: 0.068 | Acc: 45.700% (4570/10000)
+
+    Epoch: 6
+    0 / 391 : Loss: -0.912 | Acc: 39.844% (51/128)
+    150 / 391 : Loss: -0.945 | Acc: 42.979% (8307/19328)
+    300 / 391 : Loss: -0.978 | Acc: 42.722% (16460/38528)
+    Model saved to /content/gdrive/My Drive/Colab Notebooks/newlogic/output/cnn-cifar10-relu-kernel.pkl
+    Test eval: Loss: 0.067 | Acc: 47.120% (4712/10000)
+
+    Epoch: 7
+    0 / 391 : Loss: -1.085 | Acc: 44.531% (57/128)
+    150 / 391 : Loss: -1.116 | Acc: 43.771% (8460/19328)
+    300 / 391 : Loss: -1.149 | Acc: 43.662% (16822/38528)
+    Model saved to /content/gdrive/My Drive/Colab Notebooks/newlogic/output/cnn-cifar10-relu-kernel.pkl
+    Test eval: Loss: 0.066 | Acc: 47.500% (4750/10000)
+
+    Epoch: 8
+    0 / 391 : Loss: -1.253 | Acc: 39.844% (51/128)
+    150 / 391 : Loss: -1.288 | Acc: 44.655% (8631/19328)
+    300 / 391 : Loss: -1.321 | Acc: 45.043% (17354/38528)
+    Model saved to /content/gdrive/My Drive/Colab Notebooks/newlogic/output/cnn-cifar10-relu-kernel.pkl
+    Test eval: Loss: 0.065 | Acc: 48.550% (4855/10000)
+
+    Epoch: 9
+    0 / 391 : Loss: -1.431 | Acc: 48.438% (62/128)
+    150 / 391 : Loss: -1.459 | Acc: 45.778% (8848/19328)
+    300 / 391 : Loss: -1.493 | Acc: 46.096% (17760/38528)
+    Model saved to /content/gdrive/My Drive/Colab Notebooks/newlogic/output/cnn-cifar10-relu-kernel.pkl
+    Test eval: Loss: 0.066 | Acc: 48.070% (4807/10000)
+
+    Epoch: 10
+    0 / 391 : Loss: -1.592 | Acc: 32.812% (42/128)
+    150 / 391 : Loss: -1.632 | Acc: 47.139% (9111/19328)
+    300 / 391 : Loss: -1.664 | Acc: 47.028% (18119/38528)
+    Model saved to /content/gdrive/My Drive/Colab Notebooks/newlogic/output/cnn-cifar10-relu-kernel.pkl
+    Test eval: Loss: 0.063 | Acc: 50.080% (5008/10000)
+
+    Epoch: 11
+    0 / 391 : Loss: -1.768 | Acc: 43.750% (56/128)
+    150 / 391 : Loss: -1.803 | Acc: 47.698% (9219/19328)
+    300 / 391 : Loss: -1.835 | Acc: 47.713% (18383/38528)
+    Model saved to /content/gdrive/My Drive/Colab Notebooks/newlogic/output/cnn-cifar10-relu-kernel.pkl
+    Test eval: Loss: 0.063 | Acc: 50.360% (5036/10000)
+
+    Epoch: 12
+    0 / 391 : Loss: -1.940 | Acc: 50.781% (65/128)
+    150 / 391 : Loss: -1.974 | Acc: 48.789% (9430/19328)
+    300 / 391 : Loss: -2.007 | Acc: 48.425% (18657/38528)
+    Model saved to /content/gdrive/My Drive/Colab Notebooks/newlogic/output/cnn-cifar10-relu-kernel.pkl
+    Test eval: Loss: 0.063 | Acc: 50.890% (5089/10000)
+
+    Epoch: 13
+    0 / 391 : Loss: -2.116 | Acc: 47.656% (61/128)
+    150 / 391 : Loss: -2.146 | Acc: 49.519% (9571/19328)
+    300 / 391 : Loss: -2.179 | Acc: 49.330% (19006/38528)
+    Model saved to /content/gdrive/My Drive/Colab Notebooks/newlogic/output/cnn-cifar10-relu-kernel.pkl
+    Test eval: Loss: 0.063 | Acc: 51.350% (5135/10000)
+
+    Epoch: 14
+    0 / 391 : Loss: -2.280 | Acc: 47.656% (61/128)
+    150 / 391 : Loss: -2.317 | Acc: 50.326% (9727/19328)
+    300 / 391 : Loss: -2.350 | Acc: 50.197% (19340/38528)
+    Model saved to /content/gdrive/My Drive/Colab Notebooks/newlogic/output/cnn-cifar10-relu-kernel.pkl
+    Test eval: Loss: 0.064 | Acc: 50.210% (5021/10000)
+
+    Epoch: 15
+    0 / 391 : Loss: -2.457 | Acc: 49.219% (63/128)
+    150 / 391 : Loss: -2.461 | Acc: 52.266% (10102/19328)
+    300 / 391 : Loss: -2.465 | Acc: 52.707% (20307/38528)
+    Model saved to /content/gdrive/My Drive/Colab Notebooks/newlogic/output/cnn-cifar10-relu-kernel.pkl
+    Test eval: Loss: 0.059 | Acc: 54.140% (5414/10000)
+
+    Epoch: 16
+    0 / 391 : Loss: -2.477 | Acc: 53.906% (69/128)
+    150 / 391 : Loss: -2.480 | Acc: 53.730% (10385/19328)
+    300 / 391 : Loss: -2.483 | Acc: 53.654% (20672/38528)
+    Model saved to /content/gdrive/My Drive/Colab Notebooks/newlogic/output/cnn-cifar10-relu-kernel.pkl
+    Test eval: Loss: 0.059 | Acc: 54.100% (5410/10000)
+
+    Epoch: 17
+    0 / 391 : Loss: -2.491 | Acc: 50.781% (65/128)
+    150 / 391 : Loss: -2.497 | Acc: 53.710% (10381/19328)
+    300 / 391 : Loss: -2.501 | Acc: 54.275% (20911/38528)
+    Model saved to /content/gdrive/My Drive/Colab Notebooks/newlogic/output/cnn-cifar10-relu-kernel.pkl
+    Test eval: Loss: 0.059 | Acc: 54.610% (5461/10000)
+
+    Epoch: 18
+    0 / 391 : Loss: -2.514 | Acc: 59.375% (76/128)
+    150 / 391 : Loss: -2.514 | Acc: 54.372% (10509/19328)
+    300 / 391 : Loss: -2.517 | Acc: 54.148% (20862/38528)
+    Model saved to /content/gdrive/My Drive/Colab Notebooks/newlogic/output/cnn-cifar10-relu-kernel.pkl
+    Test eval: Loss: 0.058 | Acc: 54.720% (5472/10000)
+
+    Epoch: 19
+    0 / 391 : Loss: -2.530 | Acc: 57.812% (74/128)
+    150 / 391 : Loss: -2.531 | Acc: 54.491% (10532/19328)
+    300 / 391 : Loss: -2.535 | Acc: 54.843% (21130/38528)
+    Model saved to /content/gdrive/My Drive/Colab Notebooks/newlogic/output/cnn-cifar10-relu-kernel.pkl
+    Test eval: Loss: 0.059 | Acc: 54.960% (5496/10000)
+    CPU times: user 43min 23s, sys: 28min 29s, total: 1h 11min 52s
+    Wall time: 1h 12min 27s
+
 
 TODO: measure average confidence on **only perturbed** images **under max-confidence attack**.
 

@@ -286,7 +286,7 @@ class TrainingService_CIFAR10(TrainingService):
         self.trainloader = torch.utils.data.DataLoader(self.trainset, batch_size=conf['train_batch_size'], shuffle=True, num_workers=2)
         self.testloader = torch.utils.data.DataLoader(self.testset, batch_size=256, shuffle=False, num_workers=2)
         self.optimizer = optim.Adam(net.parameters(), lr=conf['lr'])
-        models.curvature_multiplier_inc = 1e-4
+        models.curvature_multiplier_inc = 0.1
         for epoch in range(conf['n_epochs']):
             # since it takes a looong time to train, we'll save every epoch
             last_train_acc = self.train(net, epoch, conf) 

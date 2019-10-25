@@ -1,0 +1,25 @@
+#!/bin/bash
+#SBATCH -t 2-00:00:00
+#SBATCH -p gpu
+#SBATCH --export=NONE
+
+. scripts/init-cartesius.sh
+. venv/bin/activate
+
+echo -n "Started: " && date
+
+out_dir=$1
+
+train() {
+    name=$1
+    second_param_onwards="${@:2}"
+    echo "Training $name"
+    # use this for testing: --vgg_name=VGG4 --n_epochs=5
+    python -u train.py cifar-10 --vgg_name=VGG11 --n_epochs=100 --use_batchnorm=False $second_param_onwards
+}
+
+train debugging --device=cuda:1 --use_relog=True --use_homemade_initialization=True \
+        --lr=0.01 --use_elliptical=True --use_sigmoid_out=True \
+        --regularization=max-fit --l1=0.01 --bias_l1=0.01
+
+echo -n "Finished: " && date

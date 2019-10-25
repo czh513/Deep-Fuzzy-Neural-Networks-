@@ -5,6 +5,14 @@ import math
 
 bounds = []
 
+class Lambda(nn.Module):
+    def __init__(self, func):
+        super().__init__()
+        self.func = func
+
+    def forward(self, x):
+        return self.func(x)
+
 class DynamicInitializer(object):
 
     def __init__(self):
@@ -295,7 +303,7 @@ class VGG(ExperimentalModel):
     def _make_layers(self, cfg):
         layers, conv_layers = [], []
         in_channels = 3
-        for x in cfg:
+        for layer_no, x in enumerate(cfg):
             if x == 'M':
                 layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
             elif isinstance(x, int):
@@ -303,7 +311,10 @@ class VGG(ExperimentalModel):
                 conv_layers.append(conv)
                 layers += self.wrap_linear(conv)
                 if self.conf['use_batchnorm']:
-                    layers += [nn.BatchNorm2d(x)]
+                    if self.conf['use_relog']:
+                        layers += [Lambda(lambda x: x - 0.5)]
+                    else:
+                        layers += [nn.BatchNorm2d(x)]
                 in_channels = x
             else:
                 raise "Unrecognized config token: %s" % str(x)
