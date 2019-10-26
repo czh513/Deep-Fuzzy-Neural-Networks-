@@ -8,7 +8,6 @@ import matplotlib.pyplot as plt
 import models
 from utils import grouper_variable_length
 from time import time
-import torch.backends.cudnn as cudnn
 import torch.optim as optim
 import itertools
 import math
@@ -136,7 +135,7 @@ class TrainingService_MNIST(TrainingService):
             'use_sigmoid_out': False, 'lr': 0.001,
             'train_batch_size': 64, 'regularization': None, 'l1': 0, 'l2': 0, 
             'bias_l1': 0, 'bias_l2': 0, 'use_scrambling': False,
-            'use_spherical': False, 'use_elliptical': False
+            'use_spherical': False, 'use_elliptical': False, 'use_quadratic': False
         }
         train_params = {**config_defaults, **kwargs}
         self.train_loop(cnn, n_epochs, train_params)
@@ -270,29 +269,35 @@ class TrainingService_CIFAR10(TrainingService):
             % (test_loss/(batch_idx+1), 100.*acc, correct, total))
         return acc
 
-    def build_and_train(self, **kwargs):
+    def build_and_train(self, curvature_multiplier_inc=1e-4, **kwargs):
+        config_defaults = {
+            'use_sigmoid_out': False, 'lr': 0.01,
+            'train_batch_size': 128, 'regularization': None, 'l1': 0, 'l2': 0, 
+            'bias_l1': 0, 'bias_l2': 0, 'use_scrambling': False,
+            'use_spherical': False, 'use_elliptical': False, 'use_quadratic': False, 
+            'use_homemade_initialization': False
+        }
+        unrecognized_params = [k for k in kwargs
+                               if not (k in models.config_defaults or k in config_defaults)]
+        assert not unrecognized_params, 'Unrecognized parameter: ' + str(unrecognized_params) 
+
         model_kwargs = {k:v for k, v in kwargs.items() if k in models.config_defaults}
         net = models.VGG(**model_kwargs)
         print(net)
-        net = net.to(self.device)
 
-        config_defaults = {
-            'use_sigmoid_out': False, 'lr': 0.01, 'n_epochs': 50,
-            'train_batch_size': 128, 'regularization': None, 'l1': 0, 'l2': 0, 
-            'bias_l1': 0, 'bias_l2': 0, 'use_scrambling': False,
-            'use_spherical': False, 'use_elliptical': False
-        }
         conf = {**config_defaults, **kwargs}
         self.trainloader = torch.utils.data.DataLoader(self.trainset, batch_size=conf['train_batch_size'], shuffle=True, num_workers=2)
         self.testloader = torch.utils.data.DataLoader(self.testset, batch_size=256, shuffle=False, num_workers=2)
-        self.optimizer = optim.Adam(net.parameters(), lr=conf['lr'])
-        models.curvature_multiplier_inc = 0.1
-        for epoch in range(conf['n_epochs']):
-            # since it takes a looong time to train, we'll save every epoch
+        # tried ADAM already: it works for ReLU but fail to train ReLog (it doesn't just overfit,
+        # it increases the loss after a few epochs)
+        models.curvature_multiplier_inc = curvature_multiplier_inc
+        net = net.to(self.device)
+        lr_schedule = [0.1]*20 + [0.01]*10 + [0.001]*10
+        for epoch, lr in enumerate(lr_schedule):
+            self.optimizer = optim.SGD(net.parameters(), lr=conf['lr'])
             last_train_acc = self.train(net, epoch, conf) 
             last_test_acc = self.test(net, epoch, conf)
         return last_train_acc, last_test_acc
-
 
 def train(dataset, out_path=None, device='cpu', normalize_data=True, **kwargs):
     if 'cuda' in device: 
@@ -303,6 +308,7 @@ def train(dataset, out_path=None, device='cpu', normalize_data=True, **kwargs):
     elif dataset == 'cifar-10':
         ts = TrainingService_CIFAR10(home_dir='.', device=device, 
                                      normalize_data=normalize_data)
+    print('a', kwargs)
     cnn = ts.build_and_train(**kwargs)
     if out_path:
         torch.save(cnn, out_path)

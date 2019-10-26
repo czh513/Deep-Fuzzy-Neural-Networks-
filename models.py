@@ -30,6 +30,9 @@ class DynamicInitializer(object):
             bounds.append(bound)
             self.run_already = True
 
+log_strength_start = 0
+log_strength_inc = 0.001
+
 class ReLog(nn.Module):
     r"""Applies the rectified log unit function element-wise:
 
@@ -47,25 +50,29 @@ class ReLog(nn.Module):
         super(ReLog, self).__init__()
         self.n = n
         self.inplace = inplace
+        self.log_strength = log_strength_start
 
     def forward(self, input):
-        # can't have two subsequent in-place operations, otherwise will get error:
-        # "RuntimeError: one of the variables needed for gradient computation has been modified by an inplace operation"
-        return torch.log(F.relu(input, self.inplace) + 1/self.n) / math.log(self.n) + 1
+        if self.training:
+            self.log_strength = min(1, self.log_strength + log_strength_inc)
+        effective_log_strength = max(0, self.log_strength)
+        linear_term = F.relu(input)
+        log_term = torch.log(linear_term + 1/self.n) / math.log(self.n) + 1
+        if effective_log_strength < 1:
+            # interpolate ReLog-ReLU just in case training is unstable
+            return log_term * effective_log_strength + linear_term * (1-effective_log_strength)
+        else:
+            return log_term
 
     def extra_repr(self):
         return 'n=%.2f' % (self.n)
 
 curvature_multiplier_start = 0
-curvature_multiplier_stop = 1
 curvature_multiplier_inc = 0.001
 
 def update_curvature_multiplier(m):
     if m.training:
-        m.multiplier = min(
-            curvature_multiplier_stop, 
-            m.multiplier + curvature_multiplier_inc, 
-        )
+        m.multiplier = min(1, m.multiplier + curvature_multiplier_inc)
     return max(0, m.multiplier)
 
 class AbsLinear(nn.Linear):
@@ -104,6 +111,12 @@ class Elliptical(nn.Linear):
         a = update_curvature_multiplier(self)
         return -a * quadratic_term + a + linear_term
 
+class Quadratic(Elliptical):
+
+    def __init__(self, *args, **kwargs):
+        super(Quadratic, self).__init__(*args, **kwargs)
+        self._quadratic = nn.Linear(*args, **kwargs)
+
 class SphericalCNN(nn.Conv2d):
 
     def __init__(self, in_channels, out_channels, kernel_size, **kwargs):
@@ -139,6 +152,12 @@ class EllipticalCNN(nn.Conv2d):
         a = update_curvature_multiplier(self)
         return -a * quadratic_term + a + linear_term
 
+class QuadraticCNN(nn.Conv2d):
+
+    def __init__(self, in_channels, out_channels, kernel_size, **kwargs):
+        super(QuadraticCNN, self).__init__(in_channels, out_channels, kernel_size, **kwargs)
+        self._quadratic = nn.Conv2d(in_channels, out_channels, kernel_size, **kwargs)
+
 class FoldingMaxout(nn.Module):
     ''' Fold the previous layer into k-tuples and output the max of each.
     
@@ -165,9 +184,9 @@ class FoldingMaxout(nn.Module):
     
 
 config_defaults = {
-    'use_relog': False, 'use_maxout': '', 'max_folding_factor': 4, 'min_folding_factor': 2,
+    'use_relog': False, 'modification_start_layer': 0, 'use_maxout': '', 'max_folding_factor': 4, 'min_folding_factor': 2,
     'conv1_out_channels': 16, 'conv2_out_channels': 32, 'use_sigmoid_out': False, 
-    'use_spherical': False, 'use_elliptical': False, 'use_batchnorm': False,
+    'use_spherical': False, 'use_elliptical': False, 'use_quadratic': False, 'use_batchnorm': False,
     'use_homemade_initialization': False, 'vgg_name': 'VGG16'
 }
 
@@ -177,8 +196,9 @@ class ExperimentalModel(nn.Module):
         super(ExperimentalModel, self).__init__()
         assert all(k in config_defaults for k in kwargs)
         self.conf = {**config_defaults, **kwargs}
-        assert not (self.conf['use_spherical'] and self.conf['use_elliptical']), \
-                "Can't use elliptical and spherical units at the same time"
+        assert sum([self.conf['use_spherical'], self.conf['use_elliptical'], 
+                    self.conf['use_quadratic']]) in (0, 1), \
+                "Can only use one in spherical, elliptical, and quadratic"
         if 'max' not in self.conf['use_maxout']:
             self.conf['max_folding_factor'] = 1
         if 'min' not in self.conf['use_maxout']:
@@ -199,6 +219,8 @@ class ExperimentalModel(nn.Module):
             f = Spherical
         elif self.conf['use_elliptical']:
             f = Elliptical
+        elif self.conf['use_quadratic']:
+            f = Quadratic
         else:
             f = nn.Linear
         module = f(*args, **kwargs)
@@ -211,6 +233,8 @@ class ExperimentalModel(nn.Module):
             f = SphericalCNN
         elif self.conf['use_elliptical']:
             f = EllipticalCNN
+        elif self.conf['use_quadratic']:
+            f = QuadraticCNN
         else:
             f = nn.Conv2d
         module = f(*args, **kwargs)
@@ -218,10 +242,11 @@ class ExperimentalModel(nn.Module):
             module.register_forward_pre_hook(DynamicInitializer())
         return module
 
-    def activation_func(self):
-        return ReLog(inplace=True) if self.conf['use_relog'] else nn.ReLU(inplace=True)
+    def activation_func(self, layer_no=None):
+        return (ReLog(inplace=True) if self.conf['use_relog']
+                else nn.ReLU(inplace=True))
 
-    def wrap_linear(self, linear, activ=True):
+    def wrap_linear(self, linear, activ=True, layer_no=None):
         assert not isinstance(linear, list)
         modules = [linear]
         if self.conf['use_maxout'] == 'max':
@@ -235,7 +260,7 @@ class ExperimentalModel(nn.Module):
             maxout = FoldingMaxout(self.conf['max_folding_factor'], dim=1)
             modules.extend([minout, maxout])
         if activ:
-            modules.append(self.activation_func())
+            modules.append(self.activation_func(layer_no=layer_no))
         return modules
 
     def forward(self, x):
@@ -281,9 +306,11 @@ class CNN(ExperimentalModel):
 cfg = {
     'VGG3':  [64, 'M', 128, 'M', 256, 'M', 'M', 'M'], # a scale-downed version to test my code
     'VGG4':  [64, 'M', 128, 'M', 256, 256, 'M', 'M', 'M'], # a scale-downed version to test my code
-    'VGG11': [64, 'M', 128, 'M', 256, 256, 'M', 512, 512, 'M', 512, 512, 'M'],
+    'VGG11': [64, 'M', 128, 'M', 256, 256, 'M', 512, 512, 'M', 512, 512, 'M'], # a scale-downed version to test my code
+    'VGG11*': [1024, 'M', 512, 'M', 512, 512, 'M', 256, 256, 'M', 128, 128, 'M'], # a scale-downed version to test my code
     'VGG13': [64, 64, 'M', 128, 128, 'M', 256, 256, 'M', 512, 512, 'M', 512, 512, 'M'],
     'VGG16': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'M', 512, 512, 512, 'M', 512, 512, 512, 'M'],
+    'VGG16*': [512, 512, 'M', 128, 128, 'M', 256, 256, 256, 'M', 512, 512, 512, 'M', 512, 512, 512, 'M'],
     'VGG19': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 256, 'M', 512, 512, 512, 512, 'M', 512, 512, 512, 512, 'M'],
 }
 
@@ -307,15 +334,19 @@ class VGG(ExperimentalModel):
             if x == 'M':
                 layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
             elif isinstance(x, int):
-                conv = self.conv(in_channels, x * self.conf['folding_factor'], kernel_size=3, padding=1)
-                conv_layers.append(conv)
-                layers += self.wrap_linear(conv)
+                if layer_no >= self.conf['modification_start_layer']:
+                    conv = self.conv(in_channels, x * self.conf['folding_factor'], kernel_size=3, padding=1)
+                    layers += self.wrap_linear(conv, layer_no=layer_no)
+                else:
+                    conv = nn.Conv2d(in_channels, x, kernel_size=3, padding=1)
+                    layers += [conv, nn.ReLU()]
                 if self.conf['use_batchnorm']:
-                    if self.conf['use_relog']:
-                        layers += [Lambda(lambda x: x - 0.5)]
-                    else:
-                        layers += [nn.BatchNorm2d(x)]
+                    # set track_running_stats=True and use a small momentum value 
+                    # here (which actually mean _more_ stability)
+                    # so that our use of ReLog is still meaningful. 
+                    layers += [nn.BatchNorm2d(x, momentum=0.01, track_running_stats=True)]
                 in_channels = x
+                conv_layers.append(conv)
             else:
                 raise "Unrecognized config token: %s" % str(x)
         layers += [nn.AvgPool2d(kernel_size=1, stride=1)]

@@ -14,40 +14,26 @@ train() {
     name=$1
     second_param_onwards="${@:2}"
     echo "Training $name"
-    # use this for testing: --vgg_name=VGG4 --n_epochs=5
-    python -u train.py cifar-10 --vgg_name=VGG16 --n_epochs=100 --use_batchnorm=True \
-            --out_path=$out_dir/$name.pkl $second_param_onwards &> $out_dir/$name.log
+    # use this for testing: --vgg_name=VGG4 
+    python -u train.py cifar-10 --vgg_name=VGG16 --use_batchnorm=True --modification_start_layer=12 --out_path=$out_dir/$name.pkl $second_param_onwards &> $out_dir/$name.log
 }
 
-# can't share the following part between cifar10 and mnist because I need to 
-# manipulate batchnorm and maybe normalize_data here
-train cnn-relu --device=cuda:0 &
-train cnn-relog --device=cuda:1 --use_relog=True &
+# Notice: can't share this part with mnist because some params are different
+# Notice: don't use "\" to put parameters on the next line, the method will ignore them...
+train relu --device=cuda:0 &
+train relog --device=cuda:1 --use_relog=True &
 wait
 
-train cnn-relog-maxout_4 --device=cuda:0 --use_relog=True \
-    --use_maxout=max --max_folding_factor=4 &
-train cnn-relog-minmaxout_2_4 --device=cuda:1 \
-    --use_relog=True --use_maxout=minmax --max_folding_factor=4 --min_folding_factor=2 &
+train relog-maxout_4 --device=cuda:0 --use_relog=True --use_maxout=max --max_folding_factor=4 &
+train relog-minmaxout_2_4 --device=cuda:1 --use_relog=True --use_maxout=minmax --max_folding_factor=4 --min_folding_factor=2 &
 wait
 
-train cnn-relog-minmaxout_2_4-sigmoid_out --device=cuda:0 \
-    --use_relog=True --use_maxout=minmax --max_folding_factor=4 --min_folding_factor=2 \
-    --use_sigmoid_out=True &
-# elliptical and minout don't go together, models won't train with both of them
-train cnn-relog-elliptical-maxout_4-sigmoid_out --device=cuda:1 \
-    --use_relog=True --use_elliptical=True --use_sigmoid_out=True \
-    --use_maxout=max --max_folding_factor=4 &
+train relog-elliptical-maxout_4 --device=cuda:1 --use_relog=True --use_elliptical=True --use_maxout=max --max_folding_factor=4 &
+train relog-elliptical-maxout_4-sigmoid_out --device=cuda:0 --use_relog=True --use_sigmoid_out=True --use_elliptical=True --use_maxout=max --max_folding_factor=4 &
 wait
 
-train cnn-relog-elliptical-maxout_4-sigmoid_out-max_fit_l1_01 --device=cuda:0 \
-    --use_relog=True --use_elliptical=True --use_sigmoid_out=True \
-    --use_maxout=max --max_folding_factor=4 \
-    --regularization=max-fit --bias_l1=0.1 --l1=0.1 &
-train cnn-relog-elliptical-maxout_4-sigmoid_out-max_fit_l1_01-scrambling \
-    --device=cuda:1 --use_relog=True --use_elliptical=True --use_sigmoid_out=True \
-    --use_maxout=max --max_folding_factor=4 \
-    --regularization=max-fit --bias_l1=0.1 --l1=0.1 --use_scrambling=True &
+train relog-elliptical-maxout_4-sigmoid_out-max_fit_l1_01 --device=cuda:0 --use_relog=True --use_elliptical=True --use_sigmoid_out=True --use_maxout=max --max_folding_factor=4 --regularization=max-fit --bias_l1=0.1 --l1=0.1 &
+train relog-elliptical-maxout_4-sigmoid_out-max_fit_l1_01-scrambling --device=cuda:1 --use_relog=True --use_elliptical=True --use_sigmoid_out=True --use_maxout=max --max_folding_factor=4 --regularization=max-fit --bias_l1=0.1 --l1=0.1 --use_scrambling=True &
 wait
 
 echo -n "Finished: " && date
