@@ -184,6 +184,7 @@ class TrainingService_MNIST(TrainingService):
                 print('Epoch: %d | train loss: %.4f | train acc: %.2f | test acc: %.2f' 
                       % (epoch, loss.item(), train_acc, test_acc))
 
+cifar_stats = ((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
 
 class TrainingService_CIFAR10(TrainingService):
 
@@ -200,7 +201,6 @@ class TrainingService_CIFAR10(TrainingService):
     def prepare_data(self, normalize_data, gaussian_noise_epsilon):
         # Data
         print('==> Preparing data..')
-        cifar_stats = ((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
         # Tried random rotating, gaussian noise, and random erasing as in MNIST 
         # but models fail to learn. Didn't try them individually.
         transform_train = torchvision.transforms.Compose([
@@ -295,9 +295,9 @@ class TrainingService_CIFAR10(TrainingService):
         lr_schedule = [0.1]*20 + [0.01]*10 + [0.001]*10
         for epoch, lr in enumerate(lr_schedule):
             self.optimizer = optim.SGD(net.parameters(), lr=conf['lr'])
-            last_train_acc = self.train(net, epoch, conf) 
-            last_test_acc = self.test(net, epoch, conf)
-        return last_train_acc, last_test_acc
+            self.last_train_acc = self.train(net, epoch, conf) 
+            self.last_test_acc = self.test(net, epoch, conf)
+        return net
 
 def train(dataset, out_path=None, device='cpu', normalize_data=True, **kwargs):
     if 'cuda' in device: 
@@ -308,7 +308,9 @@ def train(dataset, out_path=None, device='cpu', normalize_data=True, **kwargs):
     elif dataset == 'cifar-10':
         ts = TrainingService_CIFAR10(home_dir='.', device=device, 
                                      normalize_data=normalize_data)
-    print('a', kwargs)
+    else:
+        raise ValueError("Unsupported dataset: " + str(dataset))
+    print(ts)
     cnn = ts.build_and_train(**kwargs)
     if out_path:
         torch.save(cnn, out_path)
