@@ -1,16 +1,19 @@
-output/baseline-cifar10 <- train.py
+output/baseline-cifar10 <- train.py [-timecheck]
     mkdir -p $OUTPUT0
     sbatch scripts/train-cifar10-baseline.job $OUTPUT0 && echo "Job submitted, please wait for >1 hour"
 
-output/baseline-mnist, output/baseline-mnist/cnn.pkl <- train.py
+output/baseline-mnist, output/baseline-mnist/cnn.pkl <- train.py [-timecheck]
     mkdir -p $OUTPUT0
     sbatch scripts/train-mnist-baseline.job $OUTPUT0 && echo "Job submitted, please wait for >10 min"
 
-output/ablation-cifar10-models <- train.py
+output/ablation-cifar10-models <- train.py [-timecheck]
     mkdir -p $OUTPUT0
     sbatch scripts/train-cifar10-ablation.job $OUTPUT0 && echo "Job submitted, please wait for >1 day"
 
-output/ablation-mnist-models <- train.py
+output/ablation-mnist-models <- train.py [-timecheck]
     mkdir -p $OUTPUT0
     sbatch scripts/train-mnist-ablation.job $OUTPUT0 && echo "Job submitted, please wait for a few hours"
+
+output/ablation-mnist-results.json <- output/ablation-mnist-models
+    sbatch scripts/attack-mnist-ablation.job $INPUT0 $OUTPUT0 && echo "Job submitted, please wait for a few hours"
 

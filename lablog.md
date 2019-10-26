@@ -612,6 +612,38 @@ Managed to train a relog network (at least in the 4 last layers) to 88% on CIFAR
 
     commit: 1f2ceae6627b3b9567eec29bd7baee80ca4f54fb
 
+Running MNIST ablation:
+
+    commit 4e476b9abd7883814029c9cb1bcf72f9dbc09e45
+    Author: Minh Le <minhle.r7@gmail.com>
+    Date:   Sat Oct 26 18:59:25 2019 +0200
+
+        preparation for mnist ablation
+
+    [minhle@int1 newlogic]$ drake output/ablation-mnist-models
+
+    --- 3. Running (timestamped): /nfs/home2/minhle/newlogic/././output/ablation-mnist-models <- /nfs/home2/minhle/newlogic/././train.py
+    Submitted batch job 7026289
+    Job submitted, please wait for a few hours
+
+Running CIFAR-10 ablation too:
+
+    commit 9c57dc39c3dc952562f0f3ae334cfb404bd98740
+    Author: Minh Le <minhle.r7@gmail.com>
+    Date:   Sat Oct 26 23:54:01 2019 +0200
+
+        fix model saving issue
+
+    (venv) [minhle@gcn3 newlogic]$ drake output/ablation-cifar10-models
+    --- 2. Running (timestamped): /nfs/home2/minhle/newlogic/././output/ablation-cifar10-models <- /nfs/home2/minhle/newlogic/././train.py
+    Submitted batch job 7028204
+    Job submitted, please wait for >1 day
+
+Submitted a job for ablation evaluation:
+
+    [minhle@int1 newlogic]$ drake output/ablation-mnist-results.json
+    --- 4. Running (missing output): /nfs/home2/minhle/newlogic/././output/ablation-mnist-results.json <- /nfs/home2/minhle/newlogic/././output/ablation-mnist-models
+    Submitted batch job 7029466
 
 
 TODO: measure average confidence on **only perturbed** images **under max-confidence attack**.

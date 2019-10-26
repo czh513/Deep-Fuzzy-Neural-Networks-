@@ -1,0 +1,20 @@
+#!/bin/bash
+#SBATCH -t 3-00:00:00
+#SBATCH -p gpu
+#SBATCH --export=NONE
+
+. scripts/init-cartesius.sh
+. venv/bin/activate
+
+inp_dir=$1
+out_path=$2
+
+echo "" > $out_path # clear
+for model_path in $(ls $inp_dir/*.pkl)
+do
+    for attack in FGM_inf FGM_L2 CW BIM SPSA
+    do
+        python -u adversarial.py --dataset=mnist --attack=$attack \
+                --model_path=$model_path --json_out_path=$out_path
+    done
+done

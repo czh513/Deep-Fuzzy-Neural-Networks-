@@ -1,41 +1,42 @@
-from cleverhans.attacks import SaliencyMapMethod
-from cleverhans.dataset import MNIST
-from cleverhans.loss import CrossEntropy
+from cleverhans.attacks import CarliniWagnerL2, SPSA, FastGradientMethod, BasicIterativeMethod
 from cleverhans.utils import other_classes, set_log_level
-from cleverhans.utils import pair_visual, grid_visual, AccuracyReport
-from cleverhans.train import train
 from cleverhans.utils_pytorch import convert_pytorch_model_to_tf
 from cleverhans.model import CallableModelWrapper
-from cleverhans.attacks import CarliniWagnerL2
 import numpy as np
 import tensorflow as tf
 import torch
 from torchvision import datasets, transforms
-from matplotlib import pyplot as plt
-import seaborn as sns
 from scipy.special import softmax
+import json
+import sys
 
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
-print("Using device: %s" % device)
+# if you have more than one GPU on the same machine, it's important to specify 
+# the device number to force pytorch and tensorflow to the same GPU
+device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
+print("Using device: %s" % device, file=sys.stderr)
 
 class AdversarialExperiment(object):
 
-    def __init__(self, attack, params, test_data, batch_size=100, verbose=False):
+    def __init__(self, attack, params, test_data, batch_size, report_interval=20):
         self.attack = attack
-        self.params = params
+        self.params = {**params} # avoid modifying the dict
         self.test_data = test_data
         self.batch_size = batch_size
-        self.verbose = verbose
+        self.report_interval = report_interval
 
     def evaluate_model(self, model_path, num_batches=-1):
-        with tf.Session(config=tf.ConfigProto(log_device_placement=True)) as sess:
-            print('Evaluating model: ' + model_path)
-
+        # # debugging
+        # with tf.Session(config=tf.ConfigProto(log_device_placement=True)) as sess:
+        with tf.Session() as sess:
             torch_model_orig = torch.load(model_path, map_location=torch.device('cpu')).to(device)
-            torch_model = lambda x: torch_model_orig(x)[0] # to standard format
+            torch_model = lambda x: torch_model_orig(x)[0] # [0]: convert to standard format
             tf_model_fn = convert_pytorch_model_to_tf(torch_model, out_dims=10)    
             cleverhans_model = CallableModelWrapper(tf_model_fn, output_layer='logits')
+            # fix error with SPSA: "ValueError: Tried to convert 'depth' to a tensor and 
+            # failed. Error: None values not supported."
+            cleverhans_model.nb_classes = 10 
 
+            # important to shuffle the data since we'll measure standard deviation
             test_loader = torch.utils.data.DataLoader(self.test_data, batch_size=self.batch_size, shuffle=True)
 
             x_test_sample, _ = next(iter(test_loader)) # to get the shape of the input
@@ -50,9 +51,11 @@ class AdversarialExperiment(object):
             accuracies = []
             try:
                 for batch_no, (xs, ys) in enumerate(test_loader):
-                    ys_one_hot = torch.nn.functional.one_hot(ys, 10)
-                    if self.attack == CarliniWagnerL2:
-                        self.params['y'] = ys_one_hot.numpy()
+                    if self.attack == SPSA:
+                        self.params['y'] = ys.numpy().astype(np.int32)
+                    else:
+                        ys_one_hot = torch.nn.functional.one_hot(ys, 10)
+                        self.params['y'] = ys_one_hot.numpy().astype(np.int32)
                     # using generate_np() or generate() leads to similar performance
                     # not sure if the GPU is fully utilized...
                     advs = attack_model.generate_np(xs.numpy(), **self.params)
@@ -68,15 +71,16 @@ class AdversarialExperiment(object):
                     self.saved_adv_preds.append(adv_preds)
                     self.saved_clean_preds.append(clean_preds)
                     accuracies.append(correct / total)
-                    if self.verbose:
-                        print('Batch: #%d, accuracy: %.2f, std: %.2f' %(batch_no, np.mean(accuracies), np.std(accuracies)))
+                    if self.report_interval > 0 and batch_no % self.report_interval == 0:
+                        print('Batch: #%d, accuracy: %.2f, std: %.2f' 
+                              %(batch_no, np.mean(accuracies), np.std(accuracies)), file=sys.stderr)
 
                     if num_batches > 0 and batch_no+1 >= num_batches: break
             except KeyboardInterrupt:
-                print('Evaluation aborted')
+                print('Evaluation aborted', file=sys.stderr)
             self._process_saved_info()
             print('Accuracy under attack: %.2f (std=%.2f)' 
-                  %(np.mean(accuracies), np.std(accuracies)))
+                  %(np.mean(accuracies), np.std(accuracies)), file=sys.stderr)
             return accuracies
 
     def _process_saved_info(self):
@@ -90,8 +94,8 @@ class AdversarialExperiment(object):
         self.saved_diff_norm = np.linalg.norm(d.reshape(xs.shape[0], xs.size//xs.shape[0]), ord=2, axis=1)
 
     def extract_max_probs_on_perturbed_examples(self):
-        perturbed_examples = ~np.isclose(np.linalg.norm(self.saved_advs-self.saved_xs), 0)
-        print('%d examples of %d were perturbed' % (perturbed_examples.sum(), len(perturbed_examples)))
+        perturbed_examples = np.logical_not(np.isclose(self.saved_diff_norm, np.zeros_like(self.saved_diff_norm)))
+        print('%d examples of %d were perturbed' % (perturbed_examples.sum(), len(perturbed_examples)), file=sys.stderr)
         logits = self.saved_adv_preds[perturbed_examples]
         return np.max(softmax(logits, axis=1), axis=1)
 
@@ -110,16 +114,76 @@ class AdversarialExperiment(object):
         ax[3].imshow(self.saved_advs[idx,0], vmin=0, vmax=1)
         ax[4].title.set_text('Prediction on adv')
         ax[4].bar(np.arange(10), self.saved_adv_preds[idx])
-        print('Perturbation strength (L2): %.1f' % self.saved_diff_norm[idx])
+        print('Perturbation strength (L2): %.1f' % self.saved_diff_norm[idx], file=sys.stderr)
+
+def evaluate_model(attack=None, model_path=None, dataset=None, batch_size=100, 
+                   normalize_data=True, json_out_path=True, report_interval=20, **kwargs):
+    '''
+    Default params are set based on this paper:
+    Taghanaki, S. A., Abhishek, K., Azizi, S., & Hamarneh, G. (2019). A Kernelized Manifold Mapping 
+    to Diminish the Effect of Adversarial Perturbations, 11340–11349. 
+    Retrieved from http://arxiv.org/abs/1903.01015
+    '''
+    if attack == 'BIM':
+        attack_func = BasicIterativeMethod
+        default_attack_params = {
+            'ord': np.inf, 'eps': 0.3, 
+            'nb_iter': 5, 'eps_iter': .1 
+        }
+    elif attack == 'CW':
+        attack_func = CarliniWagnerL2
+        default_attack_params = {
+            'binary_search_steps': 1, # tried to put 5 here but it runs too slowly
+            'max_iterations': 50, 'learning_rate': .5,
+            'batch_size': batch_size, 'initial_const': 1}
+    elif attack == "FGM_inf":
+        attack_func = FastGradientMethod
+        default_attack_params = {'ord': np.inf, 'eps': 0.3}
+    elif attack == "FGM_L2":
+        attack_func = FastGradientMethod
+        default_attack_params = {
+            'ord': 2, 
+            'eps': 2 # setting this to 3 leads to internal CUDA error
+        }
+    elif attack == "SPSA":
+        attack_func = SPSA
+        default_attack_params = {
+            'eps': 0.3, 
+            'nb_iter': 5 # tried 50 but it runs super slowly
+        }
+    else:
+        raise ValueError("Unsupported attack: " + str(attack))
+
+    attack_params = {**default_attack_params, **kwargs}
+    if dataset == 'mnist':
+        attack_params.update({
+            'clip_min': 0., 'clip_max': 1.,
+        })
+        test_data = datasets.MNIST('./mnist', train=False, transform=transforms.ToTensor())
+    elif dataset == 'cifar-10':
+        from train import cifar_stats
+        transform_test = transforms.Compose([transforms.ToTensor(),
+                ] + ([transforms.Normalize(*cifar_stats)] if normalize_data else []))
+        # important to shuffle the data since we'll measure standard deviation
+        test_data = datasets.CIFAR10(root='./cifar10', train=False, transform=transform_test)
+    else: 
+        raise ValueError("Unsupported dataset: " + str(dataset))
+
+    ex = AdversarialExperiment(attack_func, attack_params, test_data, batch_size, report_interval=report_interval)
+    print('Evaluating model %s on attack %s' % (model_path, str(attack)), file=sys.stderr)
+    accuracies = ex.evaluate_model(model_path)
+    results = {
+        'model_path': model_path,
+        'accuracies': accuracies,
+        'max_probs': ex.extract_max_probs_on_perturbed_examples().tolist(),
+        'attack_type': str(attack),
+        **attack_params
+    }
+    if json_out_path:
+        with open(json_out_path, 'at') as f:
+            json.dump(results, f)
+            f.write('\n')
 
 if __name__ == "__main__":
-    from cleverhans.attacks import FastGradientMethod
-    from torchvision import datasets, transforms
-    import numpy as np
-    test_data = datasets.MNIST('mnist', train=False, transform=transforms.ToTensor())
-    fgsm_params = {'ord': np.inf, 'eps': 0.3, 'clip_min': 0., 'clip_max': 1. }
-    ex = AdversarialExperiment(FastGradientMethod, fgsm_params, test_data, batch_size=100)  
-    model_path = 'output/cnn-mnist-relu-maxfit_l2_01_05.pkl'
-    accuracies = ex.evaluate_model(model_path, num_batches=10)
-    print(accuracies)
-    print(ex.extract_max_probs_on_perturbed_examples())
+    import fire
+    fire.Fire(evaluate_model)
