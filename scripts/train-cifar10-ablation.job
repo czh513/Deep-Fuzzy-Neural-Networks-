@@ -29,7 +29,7 @@ train relog-minmaxout_2_4 --device=cuda:1 --use_relog=True --use_maxout=minmax -
 wait
 
 train relog-elliptical-maxout_4 --device=cuda:1 --use_relog=True --use_elliptical=True --use_maxout=max --max_folding_factor=4 &
-train relog-elliptical-maxout_4-sigmoid_out --device=cuda:0 --use_relog=True --use_sigmoid_out=True --use_elliptical=True --use_maxout=max --max_folding_factor=4 &
+train relog-elliptical-maxout_4-max_fit_l1_01 --device=cuda:0 --use_relog=True --use_elliptical=True --use_maxout=max --max_folding_factor=4 --regularization=max-fit --bias_l1=0.1 --l1=0.1 &
 wait
 
 train relog-elliptical-maxout_4-sigmoid_out-max_fit_l1_01 --device=cuda:0 --use_relog=True --use_elliptical=True --use_sigmoid_out=True --use_maxout=max --max_folding_factor=4 --regularization=max-fit --bias_l1=0.1 --l1=0.1 &
