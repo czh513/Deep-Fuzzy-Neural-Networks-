@@ -330,7 +330,7 @@ TODO: compare neurons of ReLU and logic nets to see if the latter is
 
 # Fri 25 Oct 2019
 
-ReLog models fail to train...
+ReLog models only get very poor results...
 
     [minhle@int1 newlogic]$ tail -n 2 output/ablation-cifar10/*.log
     ==> output/ablation-cifar10/cnn-relog.log <==
@@ -365,7 +365,8 @@ Loss fluctuates too... Decrease learning rate, maybe?
 
 Tried decreasing learning rate, enable "dynamic initialization" (though the implementation
 is imperfect), but ReLog still doesn't train or display large fluctuation. I succeeded once
-with ReLog+"quadratic", try again with elliptical maybe? Last successful training:
+with ReLog+"quadratic", try again with elliptical maybe? Last successful training
+(the path seems wrong but the architecture printed there clearly say that it's relog):
 
     %%time
     ts_relog.build_and_train('cnn-cifar10-relog-kernel', use_quadratic_kernel=True,
@@ -551,6 +552,66 @@ with ReLog+"quadratic", try again with elliptical maybe? Last successful trainin
     Test eval: Loss: 0.059 | Acc: 54.960% (5496/10000)
     CPU times: user 43min 23s, sys: 28min 29s, total: 1h 11min 52s
     Wall time: 1h 12min 27s
+
+Recovered old versions of the code but couldn't reproduce the results.
+Could it be that it was just a flux, an extremely lucky event when
+the hyperparams were just right????? I wasn't too careful with versioning
+then so it could also be it's just not the right version.
+
+Anyhow, decided not to rely on luck... We know that relu can be trained well,
+so we'll make an interpolation between relu and relog. Probably that would
+solve the training stability problem, just like it did for elliptical units.
+
+resubmitted:
+
+    [minhle@int1 newlogic]$ drake output/ablation-cifar10
+    which: no hadoop in (/hpc/sw/hpc/bin:/hpc/sw/hpc/sbin:/usr/lib64/qt-3.3/bin:/hpc/eb/compilerwrappers/compilers:/hpc/eb/compilerwrappers/linkers:/hpc/eb/modules-tcl-1.923/bin:/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin:/home/minhle/bin)
+    which: no drip in (/hpc/sw/hpc/bin:/hpc/sw/hpc/sbin:/usr/lib64/qt-3.3/bin:/hpc/eb/compilerwrappers/compilers:/hpc/eb/compilerwrappers/linkers:/hpc/eb/modules-tcl-1.923/bin:/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin:/home/minhle/bin)
+    The following steps will be run, in order:
+    1: /nfs/home2/minhle/newlogic/././output/ablation-cifar10 <- /nfs/home2/minhle/newlogic/././train.py [timestamped]
+    Confirm? [y/n] y
+    Running 1 steps with concurrence of 1...
+
+    --- 2. Running (timestamped): /nfs/home2/minhle/newlogic/././output/ablation-cifar10 <- /nfs/home2/minhle/newlogic/././train.py
+    Submitted batch job 7020022
+    Job submitted, please wait for >1 day
+    --- 2: /nfs/home2/minhle/newlogic/././output/ablation-cifar10 <- /nfs/home2/minhle/newlogic/././train.py -> done in 0.19s
+    Done (1 steps run).
+
+# Sat 26 Oct
+
+Nope, doesn't work. When ReLog kicks in around epoch 25, the performance starts
+to degrade. So it's not about the initialization but the model is just too
+restrictive.
+
+I am ready to give up and cut half of my paper but want to try just another
+variation, as close as possible to what works before: relog + unrestricted, 
+unattenuated quadratic... Doesn't help :-(
+
+Looking back, ReLog did kinda work... just not as well that I hoped. It could
+be that the number of available patterns in the first layer (64) is simply too
+restrictive. And batchnorm isn't that bad either. If you set the momentum high
+enough (which translate into a small value in Pytorch), it's kind of stable.
+And it could also be that ReLog actually don't like it too deep... The most 
+successful experiment I did was with VGG11 where it reached 54% test acc at 
+the 20th epoch. Anyhow, I don't have enough time to play with this...
+
+Sometimes the _training_ loss decreases and accuracy increases until epoch 4-5
+and then reverse course. Why?? A good training procedure should never increase
+the loss... Maybe ADAM breaks down when ReLog is used?
+Worst case scenario, if ReLog isn't useable in CIFAR-10 at all, I can still
+try other methods such as elliptical and scramble training.
+
+Found the culprit: ADAM! This whole sad saga could have been avoided if I didn't
+change SGD into Adam but I might not have discovered ReLU-ReLog interpolation and 
+restricting to the last layers. The former helps reache higher performance faster
+and the latter brings us to higher performance eventually. I hope that the effect
+on robustness is still there...
+
+Managed to train a relog network (at least in the 4 last layers) to 88% on CIFAR-10:
+
+    commit: 1f2ceae6627b3b9567eec29bd7baee80ca4f54fb
+
 
 
 TODO: measure average confidence on **only perturbed** images **under max-confidence attack**.
