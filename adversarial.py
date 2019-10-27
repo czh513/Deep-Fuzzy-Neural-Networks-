@@ -9,6 +9,8 @@ from torchvision import datasets, transforms
 from scipy.special import softmax
 import json
 import sys
+from time import time
+from train import cifar_stats
 
 # if you have more than one GPU on the same machine, it's important to specify 
 # the device number to force pytorch and tensorflow to the same GPU
@@ -24,12 +26,12 @@ class AdversarialExperiment(object):
         self.batch_size = batch_size
         self.report_interval = report_interval
 
-    def evaluate_model(self, model_path, num_batches=-1):
-        # # debugging
-        # with tf.Session(config=tf.ConfigProto(log_device_placement=True)) as sess:
+    def evaluate_model(self, model_path, num_batches=-1, model_device=None):
+        model_device = model_device or device
+        start_sec = time()
         with tf.Session() as sess:
-            torch_model_orig = torch.load(model_path, map_location=torch.device('cpu')).to(device)
-            torch_model = lambda x: torch_model_orig(x)[0] # [0]: convert to standard format
+            torch_model_orig = torch.load(model_path, map_location=torch.device('cpu')).to(model_device)
+            torch_model = lambda x: torch_model_orig(x.to(model_device))[0].to(device) # [0]: convert to standard format
             tf_model_fn = convert_pytorch_model_to_tf(torch_model, out_dims=10)    
             cleverhans_model = CallableModelWrapper(tf_model_fn, output_layer='logits')
             # fix error with SPSA: "ValueError: Tried to convert 'depth' to a tensor and 
@@ -42,8 +44,14 @@ class AdversarialExperiment(object):
             x_test_sample, _ = next(iter(test_loader)) # to get the shape of the input
             nchannels, img_rows, img_cols = x_test_sample.shape[1:]
             x = tf.placeholder(tf.float32, shape=(None, nchannels, img_rows, img_cols))
+            y = tf.placeholder(tf.int32, shape=(None,))
             attack_model = self.attack(cleverhans_model, sess=sess)
+            clean_preds_op = tf_model_fn(x)
             preds_op = tf_model_fn(x)
+            # # to use generate() instead of generate_np()
+            # self.params['y'] = y
+            # advs = attack_model.generate(x, **self.params)
+            # adv_preds_op = tf_model_fn(advs)
 
             # Run an evaluation of our model against fgsm
             self.saved_xs, self.saved_advs, self.saved_ys, \
@@ -62,6 +70,8 @@ class AdversarialExperiment(object):
 
                     adv_preds = sess.run(preds_op, feed_dict={x: advs})
                     clean_preds = sess.run(preds_op, feed_dict={x: xs})
+                    # clean_preds, adv_preds = sess.run([clean_preds_op, adv_preds_op],
+                    #                                   feed_dict={x: xs.numpy(), y: ys.numpy()})
                     correct = (np.argmax(adv_preds, axis=1) == ys.numpy()).sum()
                     total = test_loader.batch_size
 
@@ -72,8 +82,10 @@ class AdversarialExperiment(object):
                     self.saved_clean_preds.append(clean_preds)
                     accuracies.append(correct / total)
                     if self.report_interval > 0 and batch_no % self.report_interval == 0:
-                        print('Batch: #%d, accuracy: %.2f, std: %.2f' 
-                              %(batch_no, np.mean(accuracies), np.std(accuracies)), file=sys.stderr)
+                        elapsed_sec = time() - start_sec
+                        print('Batch: #%d, accuracy: %.2f, std: %.2f, %.1f secs/batch' 
+                              %(batch_no, np.mean(accuracies), np.std(accuracies),
+                                elapsed_sec / (batch_no+1)), file=sys.stderr)
 
                     if num_batches > 0 and batch_no+1 >= num_batches: break
             except KeyboardInterrupt:
@@ -116,8 +128,8 @@ class AdversarialExperiment(object):
         ax[4].bar(np.arange(10), self.saved_adv_preds[idx])
         print('Perturbation strength (L2): %.1f' % self.saved_diff_norm[idx], file=sys.stderr)
 
-def evaluate_model(attack=None, model_path=None, dataset=None, batch_size=100, 
-                   normalize_data=True, json_out_path=True, report_interval=20, **kwargs):
+def run(attack=None, model_path=None, model_device=None, dataset=None, batch_size=100, 
+                   normalize_data=True, json_out_path=True, num_batches=-1, report_interval=20, **kwargs):
     '''
     Default params are set based on this paper:
     Taghanaki, S. A., Abhishek, K., Azizi, S., & Hamarneh, G. (2019). A Kernelized Manifold Mapping 
@@ -160,8 +172,12 @@ def evaluate_model(attack=None, model_path=None, dataset=None, batch_size=100,
             'clip_min': 0., 'clip_max': 1.,
         })
         test_data = datasets.MNIST('./mnist', train=False, transform=transforms.ToTensor())
-    elif dataset == 'cifar-10':
-        from train import cifar_stats
+    elif dataset == 'cifar10':
+        attack_params.update({
+            # without clipping, would get "NotImplementedError: _project_perturbation currently has clipping hard-coded in."
+            # input is normalized to normal distribution, 3 sigmas are enough for clipping
+            'clip_min': -3., 'clip_max': 3.,
+        })
         transform_test = transforms.Compose([transforms.ToTensor(),
                 ] + ([transforms.Normalize(*cifar_stats)] if normalize_data else []))
         # important to shuffle the data since we'll measure standard deviation
@@ -171,7 +187,7 @@ def evaluate_model(attack=None, model_path=None, dataset=None, batch_size=100,
 
     ex = AdversarialExperiment(attack_func, attack_params, test_data, batch_size, report_interval=report_interval)
     print('Evaluating model %s on attack %s' % (model_path, str(attack)), file=sys.stderr)
-    accuracies = ex.evaluate_model(model_path)
+    accuracies = ex.evaluate_model(model_path, model_device=model_device, num_batches=num_batches)
     results = {
         'model_path': model_path,
         'accuracies': accuracies,
@@ -186,4 +202,4 @@ def evaluate_model(attack=None, model_path=None, dataset=None, batch_size=100,
 
 if __name__ == "__main__":
     import fire
-    fire.Fire(evaluate_model)
+    fire.Fire(run)

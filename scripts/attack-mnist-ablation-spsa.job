@@ -12,9 +12,7 @@ out_path=$2
 echo "" > $out_path # clear
 for model_path in $(ls $inp_dir/*.pkl)
 do
-    for attack in FGM_inf FGM_L2 CW BIM
-    do
-        python -u adversarial.py --dataset=mnist --attack=$attack \
-                --model_path=$model_path --json_out_path=$out_path
-    done
+    attack=SPSA
+    python -u adversarial.py --dataset=mnist --attack=$attack --report_interval=10 \
+            --model_path=$model_path --json_out_path=$out_path --nb_iter=50
 done

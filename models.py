@@ -209,7 +209,7 @@ class ExperimentalModel(nn.Module):
         self.weights = []
         self.bias = []
         for layer in layers:
-            if isinstance(layer, (Elliptical, EllipticalCNN)):
+            if hasattr(layer, '_quadratic'):
                 self.weights.append(layer._quadratic.weight)
             self.weights.append(layer.weight)
             self.bias.append(layer.bias)

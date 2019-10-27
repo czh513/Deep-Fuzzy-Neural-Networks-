@@ -645,6 +645,21 @@ Submitted a job for ablation evaluation:
     --- 4. Running (missing output): /nfs/home2/minhle/newlogic/././output/ablation-mnist-results.json <- /nfs/home2/minhle/newlogic/././output/ablation-mnist-models
     Submitted batch job 7029466
 
+Finished most of them, except minmaxout because of "out of memory" error
+
+# Sun 27 Oct
+
+Can't run CIFAR-10 attacks fully on GPUs because of OOM error. Running
+the defender model on CPU and the attacker model on GPU leads to even
+lower a speed (CW):
+
+    Batch: #0, accuracy: 0.00, std: 0.00, 85.7 secs/batch
+
+Running both models on a CPU node, parallelizing attacks (BIM+CW):
+
+    Batch: #0, accuracy: 0.00, std: 0.00, 25.8 secs/batch
+    Batch: #0, accuracy: 0.00, std: 0.00, 31.3 secs/batch
+
 
 TODO: measure average confidence on **only perturbed** images **under max-confidence attack**.
 

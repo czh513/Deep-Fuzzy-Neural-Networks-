@@ -132,7 +132,7 @@ class TrainingService_MNIST(TrainingService):
         print(cnn)  # net architecture
 
         config_defaults = {
-            'use_sigmoid_out': False, 'lr': 0.001,
+            'use_sigmoid_out': False, 'lr': 0.001, 'out_path': None,
             'train_batch_size': 64, 'regularization': None, 'l1': 0, 'l2': 0, 
             'bias_l1': 0, 'bias_l2': 0, 'use_scrambling': False,
             'use_spherical': False, 'use_elliptical': False, 'use_quadratic': False
@@ -271,7 +271,7 @@ class TrainingService_CIFAR10(TrainingService):
 
     def build_and_train(self, curvature_multiplier_inc=1e-4, **kwargs):
         config_defaults = {
-            'use_sigmoid_out': False, 'lr': 0.01,
+            'use_sigmoid_out': False, 'lr': 0.01, 'out_path': None,
             'train_batch_size': 128, 'regularization': None, 'l1': 0, 'l2': 0, 
             'bias_l1': 0, 'bias_l2': 0, 'use_scrambling': False,
             'use_spherical': False, 'use_elliptical': False, 'use_quadratic': False, 
@@ -297,9 +297,12 @@ class TrainingService_CIFAR10(TrainingService):
             self.optimizer = optim.SGD(net.parameters(), lr=conf['lr'])
             self.last_train_acc = self.train(net, epoch, conf) 
             self.last_test_acc = self.test(net, epoch, conf)
+            if out_path:
+                torch.save(net, out_path)
+                print('Model saved to %s' % out_path)
         return net
 
-def train(dataset, out_path=None, device='cpu', normalize_data=True, **kwargs):
+def train(dataset, device='cpu', normalize_data=True, **kwargs):
     if 'cuda' in device: 
         assert torch.cuda.is_available()
     print("Using device: %s" % device)
@@ -310,8 +313,8 @@ def train(dataset, out_path=None, device='cpu', normalize_data=True, **kwargs):
                                      normalize_data=normalize_data)
     else:
         raise ValueError("Unsupported dataset: " + str(dataset))
-    print(ts)
     cnn = ts.build_and_train(**kwargs)
+    out_path = kwargs.get('out_path')
     if out_path:
         torch.save(cnn, out_path)
         print('Model saved to %s' % out_path)
