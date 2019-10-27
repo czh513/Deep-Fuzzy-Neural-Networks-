@@ -660,6 +660,24 @@ Running both models on a CPU node, parallelizing attacks (BIM+CW):
     Batch: #0, accuracy: 0.00, std: 0.00, 25.8 secs/batch
     Batch: #0, accuracy: 0.00, std: 0.00, 31.3 secs/batch
 
+Elliptical models fail to train on CIFAR-10:
+
+    [minhle@int2 newlogic]$ grep "Test eval" output/ablation-cifar10-models/relog-elliptical-maxout_4.log
+    Test eval: Loss: 1.679 | Acc: 39.090% (3909/10000)
+    Test eval: Loss: 1.548 | Acc: 45.950% (4595/10000)
+    Test eval: Loss: 1.555 | Acc: 44.270% (4427/10000)
+    Test eval: Loss: 1.383 | Acc: 50.540% (5054/10000)
+    Test eval: Loss: 1.858 | Acc: 37.940% (3794/10000)
+    Test eval: Loss: 1.365 | Acc: 52.640% (5264/10000)
+    Test eval: Loss: 1.873 | Acc: 38.000% (3800/10000)
+    Test eval: Loss: 1.330 | Acc: 53.640% (5364/10000)
+    Test eval: Loss: 2.095 | Acc: 25.090% (2509/10000)
+    Test eval: Loss: 2.230 | Acc: 13.040% (1304/10000)
+    Test eval: Loss: 2.125 | Acc: 19.000% (1900/10000)
+    Test eval: Loss: 2.059 | Acc: 20.920% (2092/10000)
+
+Perhaps the model is too restrictive... I'll relax it by training quadratic
+instead.
 
 TODO: measure average confidence on **only perturbed** images **under max-confidence attack**.
 

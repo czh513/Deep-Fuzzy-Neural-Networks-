@@ -297,6 +297,7 @@ class TrainingService_CIFAR10(TrainingService):
             self.optimizer = optim.SGD(net.parameters(), lr=conf['lr'])
             self.last_train_acc = self.train(net, epoch, conf) 
             self.last_test_acc = self.test(net, epoch, conf)
+            out_path = kwargs.get('out_path')
             if out_path:
                 torch.save(net, out_path)
                 print('Model saved to %s' % out_path)
