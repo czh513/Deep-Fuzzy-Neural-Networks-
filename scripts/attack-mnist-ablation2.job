@@ -1,0 +1,28 @@
+#!/bin/bash
+#SBATCH -t 3-00:00:00
+#SBATCH -p normal
+#SBATCH --export=NONE
+
+. scripts/init-cartesius.sh
+. venv/bin/activate
+
+inp_dir=$1
+out_path=$2
+
+execute_attack() {
+    third_param_onwards="${@:3}"
+    python -u adversarial.py --dataset=mnist --attack=$1 \
+            --model_path=$2 --json_out_path=$out_path $third_param_onwards \
+            --report_interval=5 --model_device=cpu # using CPUs to avoid OOM on a GPU
+}
+
+for model_name in relog-minmaxout_2_4 relog-elliptical-maxout_4-sigmoid_out-max_fit_l1_1-overlay
+do
+    model_path=$inp_dir/$model_name.pkl
+    execute_attack FGM_inf $model_path &
+    execute_attack FGM_L2 $model_path &
+    execute_attack CW $model_path --num_batches=50 &
+    execute_attack BIM $model_path --num_batches=50 &
+    execute_attack SPSA $model_path --num_batches=25 &
+    wait
+done

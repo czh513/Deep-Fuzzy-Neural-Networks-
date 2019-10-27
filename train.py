@@ -12,47 +12,11 @@ import torch.optim as optim
 import itertools
 import math
 import numpy as np
+from negaugment import *
 
 def gaussian_noise(epsilon):
     transform_func = lambda x : (x + torch.randn_like(x)*epsilon).clamp(min=0, max=1)
     return torchvision.transforms.Lambda(transform_func)
-
-class PixelScramble(object):
-
-    def __call__(self, input):
-        ''' Scramble pixels in a picture, without crossing color channels '''
-        output = input.view(input.shape[0], input.shape[1], -1)
-        order = torch.randperm(output.shape[2])
-        return output[:,:,order].view(input.shape)
-
-class BlockScramble(object):
-    
-    def __init__(self, block_size=5):
-        self.block_size = block_size
-
-    def blocked_randperm(self, n):
-      n_round = int(math.ceil(n / float(self.block_size)) * self.block_size)
-      indices = torch.arange(n_round).fmod_(n)
-      blocked_indices = indices.reshape(-1, self.block_size)
-      blocked_indices = blocked_indices[torch.randperm(blocked_indices.shape[0])]
-      indices = blocked_indices.view(-1)[:n]
-      return indices
-      
-    def __call__(self, input):
-        ''' Scramble pixels in a picture, without crossing color channels '''
-        output = (input
-                  [:,:,self.blocked_randperm(input.shape[2]),:]
-                  [:,:,:,self.blocked_randperm(input.shape[3])])
-        return output
-
-class ChoiceScramble(object):
-
-    def __init__(self, scrambles):
-        self.scrambles = scrambles
-
-    def __call__(self, input):
-        i = np.random.choice(len(self.scrambles))
-        return self.scrambles[i](input)
 
 def tmean(vals):
     ''' Compute micro-average of a list of Torch Tensors '''
@@ -63,15 +27,17 @@ class TrainingService(object):
 
     def compute_loss(self, epoch, cnn, train_x, train_y, output, conf):
         loss_func = nn.MSELoss() if conf['use_sigmoid_out'] else nn.CrossEntropyLoss()
+        orig_train_y = train_y
         if conf['use_sigmoid_out']:
             train_y = one_hot(train_y, num_classes=self.num_classes).float()
         loss = loss_func(output, train_y)
-        if conf['use_scrambling'] and epoch >= 1:
-            assert conf['use_sigmoid_out'], "Softmax networks can't handle scrambled input"
-            scramble_x = self.scramble(train_x)[:train_x.shape[0]]
-            scramble_y = torch.zeros(scramble_x.shape[0], self.num_classes).to(self.device)
-            scramble_output, _ = cnn(scramble_x)
-            loss += loss_func(scramble_output, scramble_y)
+        if (conf['use_scrambling'] or conf['use_overlay']) and epoch >= 1:
+            assert conf['use_sigmoid_out'], "Softmax networks can't handle all-negative input"
+            f = self.scramble if conf['use_scrambling'] else OverlayNegativeSamples()
+            neg_x = f(train_x, orig_train_y).to(self.device)
+            neg_y = torch.zeros(neg_x.shape[0], self.num_classes).to(self.device)
+            neg_output, _ = cnn(neg_x)
+            loss += loss_func(neg_output, neg_y)
         if conf['regularization'] in ('max-fit', 'max-margin') and not conf['use_spherical']:
             assert (conf['l1'] > 0) or (conf['l2'] > 0), "Strength of regularization must be specified"
             if conf['l1'] > 0:
@@ -134,7 +100,7 @@ class TrainingService_MNIST(TrainingService):
         config_defaults = {
             'use_sigmoid_out': False, 'lr': 0.001, 'out_path': None,
             'train_batch_size': 64, 'regularization': None, 'l1': 0, 'l2': 0, 
-            'bias_l1': 0, 'bias_l2': 0, 'use_scrambling': False,
+            'bias_l1': 0, 'bias_l2': 0, 'use_scrambling': False, 'use_overlay': False,
             'use_spherical': False, 'use_elliptical': False, 'use_quadratic': False
         }
         train_params = {**config_defaults, **kwargs}
@@ -273,7 +239,7 @@ class TrainingService_CIFAR10(TrainingService):
         config_defaults = {
             'use_sigmoid_out': False, 'lr': 0.01, 'out_path': None,
             'train_batch_size': 128, 'regularization': None, 'l1': 0, 'l2': 0, 
-            'bias_l1': 0, 'bias_l2': 0, 'use_scrambling': False,
+            'bias_l1': 0, 'bias_l2': 0, 'use_scrambling': False, 'use_overlay': False,
             'use_spherical': False, 'use_elliptical': False, 'use_quadratic': False, 
             'use_homemade_initialization': False
         }
