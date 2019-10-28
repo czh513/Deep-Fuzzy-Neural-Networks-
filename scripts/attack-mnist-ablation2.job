@@ -19,10 +19,11 @@ execute_attack() {
 for model_name in relog-minmaxout_2_4 relog-elliptical-maxout_4-sigmoid_out-max_fit_l1_1-overlay
 do
     model_path=$inp_dir/$model_name.pkl
-    execute_attack FGM_inf $model_path &
-    execute_attack FGM_L2 $model_path &
-    execute_attack CW $model_path --num_batches=50 &
-    execute_attack BIM $model_path --num_batches=50 &
+    # execute_attack FGM_inf $model_path &
+    # execute_attack FGM_L2 $model_path &
+    # execute_attack CW $model_path --num_batches=50 &
+    # execute_attack BIM $model_path --num_batches=50 &
     execute_attack SPSA $model_path --num_batches=25 &
-    wait
+    # wait
 done
+wait
