@@ -1,4 +1,4 @@
-from cleverhans.attacks import CarliniWagnerL2, SPSA, FastGradientMethod, BasicIterativeMethod
+from cleverhans.attacks import CarliniWagnerL2, SPSA, FastGradientMethod, BasicIterativeMethod, MaxConfidence
 from cleverhans.utils import other_classes, set_log_level
 from cleverhans.utils_pytorch import convert_pytorch_model_to_tf
 from cleverhans.model import CallableModelWrapper
@@ -62,8 +62,11 @@ class AdversarialExperiment(object):
                     if self.attack == SPSA:
                         self.params['y'] = ys.numpy().astype(np.int32)
                     else:
-                        ys_one_hot = torch.nn.functional.one_hot(ys, 10)
-                        self.params['y'] = ys_one_hot.numpy().astype(np.int32)
+                        ys_one_hot = torch.nn.functional.one_hot(ys, 10).numpy()
+                        if self.attack == MaxConfidence:
+                            self.params['y'] = ys_one_hot.astype(np.float32)
+                        else:
+                            self.params['y'] = ys_one_hot.astype(np.int32)
                     # using generate_np() or generate() leads to similar performance
                     # not sure if the GPU is fully utilized...
                     advs = attack_model.generate_np(xs.numpy(), **self.params)
@@ -162,6 +165,12 @@ def run(attack=None, model_path=None, model_device=None, dataset=None, batch_siz
         default_attack_params = {
             'eps': 0.3, 
             'nb_iter': 5 # tried 50 but it runs super slowly
+        }
+    elif attack == 'MaxConf':
+        attack_func = MaxConfidence
+        default_attack_params = {
+            'ord': np.inf, 'eps': 0.3, 
+            'nb_iter': 5, 'eps_iter': .1 
         }
     else:
         raise ValueError("Unsupported attack: " + str(attack))

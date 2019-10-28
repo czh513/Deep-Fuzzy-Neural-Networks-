@@ -1,0 +1,23 @@
+#!/bin/bash
+#SBATCH -t 3-00:00:00
+#SBATCH -p normal
+#SBATCH --export=NONE
+
+. scripts/init-cartesius.sh
+. venv/bin/activate
+
+inp_dir=$1
+out_path=$2
+
+execute_attack() {
+    third_param_onwards="${@:3}"
+    python -u adversarial.py --dataset=mnist --attack=$1 \
+            --model_path=$2 --json_out_path=$out_path $third_param_onwards \
+            --report_interval=5 --model_device=cpu # using CPUs to avoid OOM on a GPU
+}
+
+for model_path in $(ls $inp_dir/*.pkl)
+do
+    execute_attack MaxConf $model_path --num_batches=25 &
+done
+wait

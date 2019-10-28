@@ -30,6 +30,11 @@ output/ablation-mnist-results2.json <- output/ablation-mnist-models
     sbatch scripts/attack-mnist-ablation2.job $INPUT0 $OUTPUT0 # CPU
     echo "Jobs submitted, please wait for a few hours"
 
+output/ablation-mnist-results3.json <- output/ablation-mnist-models
+    echo "" > $OUTPUT0 # clear
+    sbatch scripts/attack-mnist-ablation3.job $INPUT0 $OUTPUT0 # CPU
+    echo "Jobs submitted, please wait for a few hours"
+
 output/ablation-mnist-results-spsa.json <- output/ablation-mnist-models
     sbatch scripts/attack-mnist-ablation-spsa.job $INPUT0 $OUTPUT0 && echo "Job submitted, please wait for a few hours"
 

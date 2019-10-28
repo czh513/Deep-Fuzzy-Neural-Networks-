@@ -747,6 +747,22 @@ Gathering newest results... somehow, we're missing SPSA results for two models.
     Submitted batch job 7038310
     JobS submitted, please wait for a few hours
 
+Rerun CIFAR-10 training:
+
+    (base) Minhs-MacBook-Pro:newlogic cumeo$ git log | head
+    commit 2278fca4d0c586539cf441154e1f9c5e68289013
+    Author: Minh Le <minhle.r7@gmail.com>
+    Date:   Mon Oct 28 16:11:20 2019 +0100
+
+        prepare to train cifar-10
+
+    [minhle@int1 newlogic]$ drake output/ablation-cifar10-models output/ablation-cifar10-models2
+    --- 2. Running (missing output): /nfs/home2/minhle/newlogic/././output/ablation-cifar10-models <- /nfs/home2/minhle/newlogic/././train.py
+    Submitted batch job 7040122
+    Job submitted, please wait for >1 day
+    --- 3. Running (missing output): /nfs/home2/minhle/newlogic/././output/ablation-cifar10-models2 <- /nfs/home2/minhle/newlogic/././train.py
+    Submitted batch job 7040123
+    Job submitted, please wait for >1 day
 
 
 TODO: measure average confidence on **only perturbed** images **under max-confidence attack**.

@@ -266,8 +266,7 @@ class TrainingService_CIFAR10(TrainingService):
         # it increases the loss after a few epochs)
         models.curvature_multiplier_inc = curvature_multiplier_inc
         net = net.to(self.device)
-        lr_schedule = [0.1]*20 + [0.01]*10 + [0.001]*10
-        for epoch, lr in enumerate(lr_schedule):
+        for epoch in range(40):
             self.optimizer = optim.SGD(net.parameters(), lr=conf['lr'])
             self.last_train_acc = self.train(net, epoch, conf) 
             self.last_test_acc = self.test(net, epoch, conf)
