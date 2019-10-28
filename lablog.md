@@ -649,6 +649,12 @@ Finished most of them, except minmaxout because of "out of memory" error
 
 # Sun 27 Oct
 
+Figured out how to run SPSA on MNIST, job running:
+
+    7035870       gpu attack-m   minhle  R    7:53:17      1 gcn8
+    [minhle@int2 newlogic]$ wc -l output/ablation-mnist-results-spsa.json
+    7 output/ablation-mnist-results-spsa.json
+
 Can't run CIFAR-10 attacks fully on GPUs because of OOM error. Running
 the defender model on CPU and the attacker model on GPU leads to even
 lower a speed (CW):
@@ -678,6 +684,46 @@ Elliptical models fail to train on CIFAR-10:
 
 Perhaps the model is too restrictive... I'll relax it by training quadratic
 instead.
+
+    (base) Minhs-MacBook-Pro:newlogic cumeo$ git log | head
+    commit 8fe9f350a5b65141cf39a9d6a87e4d1b40563f04
+    Author: Minh Le <minhle.r7@gmail.com>
+    Date:   Sun Oct 27 21:21:21 2019 +0100
+
+        prepare to train quadratic models on cifar10
+
+    [minhle@int2 newlogic]$ drake output/ablation-cifar10-models2
+    --- 3. Running (missing output): /nfs/home2/minhle/newlogic/././output/ablation-cifar10-models2 <- /nfs/home2/minhle/newlogic/././train.py
+    Submitted batch job 7036598
+    Job submitted, please wait for >1 day
+
+New idea: instead of scrambling, create all-negative examples by 
+[overlaying two images of different classes](notebooks/overlay.ipynb).
+Training a new model:
+
+    output/ablation-mnist-models/relog-elliptical-maxout_4-sigmoid_out-max_fit_l1_1-overlay.log
+
+Running evaluation, didn't make much of a difference from scrambling w.r.t. 
+C&W and BIM but seem to make a big jump for SPSA.
+
+    (base) Minhs-MacBook-Pro:newlogic cumeo$ git log | head
+    commit 239b8962b7b51abbe75e6d861f111f9771022caf
+    Author: Minh Le <minhle.r7@gmail.com>
+    Date:   Sun Oct 27 23:04:55 2019 +0100
+
+        evaluate relog-minmax and overlay
+    [minhle@int2 newlogic]$ sbatch scripts/attack-mnist-ablation2.job output/ablation-mnist-models output/ablation-mnist-results.json
+    Submitted batch job 7036722
+
+I seriously need to wrap things up...
+
+Resubmitted attacks on CIFAR-10 models:
+
+    [minhle@int2 newlogic]$ drake output/ablation-cifar10-results.json
+    --- 7. Running (missing output): /nfs/home2/minhle/newlogic/././output/ablation-cifar10-results.json <- /nfs/home2/minhle/newlogic/././output/ablation-cifar10-models, /nfs/home2/minhle/newlogic/././output/ablation-cifar10-models2
+    Submitted batch job 7037447
+    Submitted batch job 7037448
+
 
 TODO: measure average confidence on **only perturbed** images **under max-confidence attack**.
 

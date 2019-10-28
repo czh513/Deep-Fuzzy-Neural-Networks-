@@ -131,7 +131,7 @@ class AdversarialExperiment(object):
 def run(attack=None, model_path=None, model_device=None, dataset=None, batch_size=100, 
                    normalize_data=True, json_out_path=True, num_batches=-1, report_interval=20, **kwargs):
     '''
-    Default params are set based on this paper:
+    Default params are set based on this paper as much as possible:
     Taghanaki, S. A., Abhishek, K., Azizi, S., & Hamarneh, G. (2019). A Kernelized Manifold Mapping 
     to Diminish the Effect of Adversarial Perturbations, 11340–11349. 
     Retrieved from http://arxiv.org/abs/1903.01015

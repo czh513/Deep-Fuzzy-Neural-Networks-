@@ -23,6 +23,10 @@ output/ablation-mnist-models <- train.py [-timecheck]
 output/ablation-mnist-results.json <- output/ablation-mnist-models
     echo "" > $OUTPUT0 # clear
     sbatch scripts/attack-mnist-ablation.job $INPUT0 $OUTPUT0 # GPU
+    echo "JobS submitted, please wait for a few hours"
+
+output/ablation-mnist-results2.json <- output/ablation-mnist-models
+    echo "" > $OUTPUT0 # clear
     sbatch scripts/attack-mnist-ablation2.job $INPUT0 $OUTPUT0 # CPU
     echo "JobS submitted, please wait for a few hours"
 
@@ -30,5 +34,12 @@ output/ablation-mnist-results-spsa.json <- output/ablation-mnist-models
     sbatch scripts/attack-mnist-ablation-spsa.job $INPUT0 $OUTPUT0 && echo "Job submitted, please wait for a few hours"
 
 output/ablation-cifar10-results.json <- output/ablation-cifar10-models
-    sbatch scripts/attack-cifar10-ablation.job $INPUT0 $OUTPUT0 && echo "Job submitted, please wait for a few hours"
+    echo "" > $OUTPUT0 # clear
+    sbatch scripts/attack-cifar10-ablation.job $INPUT0 $OUTPUT0 
+    echo "Job submitted, please wait for a few hours"
+
+output/ablation-cifar10-results2.json <- output/ablation-cifar10-models2
+    echo "" > $OUTPUT0 # clear
+    sbatch scripts/attack-cifar10-ablation.job $INPUT0 $OUTPUT0
+    echo "Job submitted, please wait for a few hours"
 

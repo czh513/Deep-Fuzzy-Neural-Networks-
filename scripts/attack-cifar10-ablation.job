@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH -t 3-00:00:00
-#SBATCH -p gpu
+#SBATCH -p normal
 #SBATCH --export=NONE
 
 . scripts/init-cartesius.sh
@@ -16,7 +16,6 @@ execute_attack() {
             --report_interval=5 --model_device=cpu # using CPUs to avoid OOM on a GPU
 }
 
-echo "" > $out_path # clear
 for model_path in $(ls $inp_dir/*.pkl)
 do
     execute_attack BIM $model_path --num_batches=50 &
