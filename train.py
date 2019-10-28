@@ -23,6 +23,11 @@ def tmean(vals):
     vals = [val.view(-1) for val in vals]
     return torch.cat(vals).mean()
 
+def tstd(vals):
+    ''' Compute micro-average of a list of Torch Tensors '''
+    vals = [val.view(-1) for val in vals]
+    return torch.cat(vals).std()
+
 class TrainingService(object):
 
     def compute_loss(self, epoch, cnn, train_x, train_y, output, conf):
@@ -38,26 +43,27 @@ class TrainingService(object):
             neg_y = torch.zeros(neg_x.shape[0], self.num_classes).to(self.device)
             neg_output, _ = cnn(neg_x)
             loss += loss_func(neg_output, neg_y)
-        if conf['regularization'] in ('max-fit', 'max-margin') and not conf['use_spherical']:
-            assert (conf['l1'] > 0) or (conf['l2'] > 0), "Strength of regularization must be specified"
-            if conf['l1'] > 0:
-                loss += conf['l1'] * tmean(w.abs() for w in cnn.weights)
-            if conf['l2'] > 0:
-                loss += conf['l2'] * tmean(w*w for w in cnn.weights)
-        if conf['regularization'] == 'max-margin' and conf['use_spherical']:
-            assert (conf['bias_l1'] > 0) or (conf['bias_l2'] > 0), \
-                "For max-margin with spherical, strength of bias regularization must be specified"
-            if conf['bias_l1'] > 0:
-                loss += -conf['bias_l1'] * tmean(b for b in cnn.bias) # notice: no abs()
-            if conf['bias_l2'] > 0:
-                loss += -conf['bias_l2'] * tmean(b*b.abs() for b in cnn.bias) # notice: signed
-        if conf['regularization'] == 'max-fit':
-            assert (conf['bias_l1'] > 0) or (conf['bias_l2'] > 0), \
-                "For max-fit, strength of bias regularization must be specified"
-            if conf['bias_l1'] > 0:
-                loss += conf['bias_l1'] * tmean(b for b in cnn.bias) # notice: no abs()
-            if conf['bias_l2'] > 0:
-                loss += conf['bias_l2'] * tmean(b*b.abs() for b in cnn.bias) # notice: signed
+        if epoch >= conf['regularization_start_epoch']:
+            if conf['regularization'] in ('max-fit', 'max-margin') and not conf['use_spherical']:
+                assert (conf['l1'] > 0) or (conf['l2'] > 0), "Strength of regularization must be specified"
+                if conf['l1'] > 0:
+                    loss += conf['l1'] * tmean(w.abs() for w in cnn.weights)
+                if conf['l2'] > 0:
+                    loss += conf['l2'] * tmean(w*w for w in cnn.weights)
+            if conf['regularization'] == 'max-margin' and conf['use_spherical']:
+                assert (conf['bias_l1'] > 0) or (conf['bias_l2'] > 0), \
+                    "For max-margin with spherical, strength of bias regularization must be specified"
+                if conf['bias_l1'] > 0:
+                    loss += -conf['bias_l1'] * tmean(b for b in cnn.bias) # notice: no abs()
+                if conf['bias_l2'] > 0:
+                    loss += -conf['bias_l2'] * tmean(b*b.abs() for b in cnn.bias) # notice: signed
+            if conf['regularization'] == 'max-fit':
+                assert (conf['bias_l1'] > 0) or (conf['bias_l2'] > 0), \
+                    "For max-fit, strength of bias regularization must be specified"
+                if conf['bias_l1'] > 0:
+                    loss += conf['bias_l1'] * tmean(b for b in cnn.bias) # notice: no abs()
+                if conf['bias_l2'] > 0:
+                    loss += conf['bias_l2'] * tmean(b*b.abs() for b in cnn.bias) # notice: signed
         return loss
 
 
@@ -98,8 +104,8 @@ class TrainingService_MNIST(TrainingService):
         print(cnn)  # net architecture
 
         config_defaults = {
-            'use_sigmoid_out': False, 'lr': 0.001, 'out_path': None,
-            'train_batch_size': 64, 'regularization': None, 'l1': 0, 'l2': 0, 
+            'use_sigmoid_out': False, 'lr': 0.001, 'out_path': None, 'train_batch_size': 64, 
+            'regularization': None, 'regularization_start_epoch': 2, 'l1': 0, 'l2': 0, 
             'bias_l1': 0, 'bias_l2': 0, 'use_scrambling': False, 'use_overlay': False,
             'use_spherical': False, 'use_elliptical': False, 'use_quadratic': False
         }
@@ -203,6 +209,8 @@ class TrainingService_CIFAR10(TrainingService):
             if batch_idx % self.report_interval == 0:
                 print(batch_idx, '/', len(self.trainloader), ': Loss: %.3f | Acc: %.3f%% (%d/%d)'
                     % (train_loss/(batch_idx+1), 100.*acc, correct, total))
+                # tried measuring all weights and quadratic weights here but mean and std
+                # weren't helpful. whatever changes they have they don't reflect on overall stats
             if self.num_batches_per_epoch > 0 and batch_idx >= self.num_batches_per_epoch:
                 break # end it early so that we can test the code
         return acc
@@ -237,8 +245,8 @@ class TrainingService_CIFAR10(TrainingService):
 
     def build_and_train(self, curvature_multiplier_inc=1e-4, **kwargs):
         config_defaults = {
-            'use_sigmoid_out': False, 'lr': 0.01, 'out_path': None,
-            'train_batch_size': 128, 'regularization': None, 'l1': 0, 'l2': 0, 
+            'use_sigmoid_out': False, 'lr': 0.01, 'out_path': None, 'train_batch_size': 128, 
+            'regularization': None, 'regularization_start_epoch': 10, 'l1': 0, 'l2': 0,
             'bias_l1': 0, 'bias_l2': 0, 'use_scrambling': False, 'use_overlay': False,
             'use_spherical': False, 'use_elliptical': False, 'use_quadratic': False, 
             'use_homemade_initialization': False

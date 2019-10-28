@@ -18,9 +18,6 @@ execute_attack() {
 
 for model_path in $(ls $inp_dir/*.pkl)
 do
-    execute_attack BIM $model_path &
-    execute_attack CW $model_path &
-    execute_attack FGM_inf $model_path &
-    execute_attack FGM_L2 $model_path &
-    wait
+    execute_attack SPSA $model_path --num_batches=15 --nb_iter=50 &
 done
+wait

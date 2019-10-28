@@ -704,25 +704,49 @@ Training a new model:
     output/ablation-mnist-models/relog-elliptical-maxout_4-sigmoid_out-max_fit_l1_1-overlay.log
 
 Running evaluation, didn't make much of a difference from scrambling w.r.t. 
-C&W and BIM but seem to make a big jump for SPSA.
-
-    (base) Minhs-MacBook-Pro:newlogic cumeo$ git log | head
-    commit 239b8962b7b51abbe75e6d861f111f9771022caf
-    Author: Minh Le <minhle.r7@gmail.com>
-    Date:   Sun Oct 27 23:04:55 2019 +0100
-
-        evaluate relog-minmax and overlay
-    [minhle@int2 newlogic]$ sbatch scripts/attack-mnist-ablation2.job output/ablation-mnist-models output/ablation-mnist-results.json
-    Submitted batch job 7036722
+C&W and BIM but <s>seem to make a big jump for SPSA.</s>
+--> EDITED: the big jump was due to smaller value of `nb_iters`
 
 I seriously need to wrap things up...
 
 Resubmitted attacks on CIFAR-10 models:
 
-    [minhle@int2 newlogic]$ drake output/ablation-cifar10-results.json
-    --- 7. Running (missing output): /nfs/home2/minhle/newlogic/././output/ablation-cifar10-results.json <- /nfs/home2/minhle/newlogic/././output/ablation-cifar10-models, /nfs/home2/minhle/newlogic/././output/ablation-cifar10-models2
-    Submitted batch job 7037447
-    Submitted batch job 7037448
+    (base) Minhs-MacBook-Pro:newlogic cumeo$ git log | head
+    commit d5cbc96a7f7b87be784712427288bfc20898c8bf
+    Author: Minh Le <minhle.r7@gmail.com>
+    Date:   Mon Oct 28 01:51:35 2019 +0100
+
+        plot distributed vs local, prepare to eval cifar
+
+    [minhle@int2 newlogic]$ drake output/ablation-cifar10-results.json output/ablation-cifar10-results2.json
+
+    --- 8. Running (missing output): /nfs/home2/minhle/newlogic/././output/ablation-cifar10-results.json <- /nfs/home2/minhle/newlogic/././output/ablation-cifar10-models
+    Submitted batch job 7037467
+    Job submitted, please wait for a few hours
+    --- 9. Running (missing output): /nfs/home2/minhle/newlogic/././output/ablation-cifar10-results2.json <- /nfs/home2/minhle/newlogic/././output/ablation-cifar10-models2
+    Submitted batch job 7037468
+    Job submitted, please wait for a few hours
+
+This model fails to train because of some grammatical mistake I recently 
+introduced: `relog-quadratic-maxout_4-sigmoid_out-scrambling.log`.
+Perhaps I'll want to run the "overlay" algorithm though.
+
+# Mon 28 Oct
+
+Gathering newest results... somehow, we're missing SPSA results for two models.
+
+    (base) Minhs-MacBook-Pro:newlogic cumeo$ git log | head
+    commit 7fcd33f22c1f8c0ecaa40a334151264de8b6a103
+    Author: Minh Le <minhle.r7@gmail.com>
+    Date:   Mon Oct 28 11:30:28 2019 +0100
+
+        fix SPSA eval for two models
+                
+    [minhle@int1 newlogic]$ drake output/ablation-mnist-results2.json
+    --- 6. Running (missing output): /nfs/home2/minhle/newlogic/././output/ablation-mnist-results2.json <- /nfs/home2/minhle/newlogic/././output/ablation-mnist-models
+    Submitted batch job 7038310
+    JobS submitted, please wait for a few hours
+
 
 
 TODO: measure average confidence on **only perturbed** images **under max-confidence attack**.

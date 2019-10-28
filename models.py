@@ -182,7 +182,6 @@ class FoldingMaxout(nn.Module):
     def extra_repr(self):
         return 'use_min=%s, k=%s' % (self.use_min, self.k)
     
-
 config_defaults = {
     'use_relog': False, 'modification_start_layer': 0, 'use_maxout': '', 'max_folding_factor': 4, 'min_folding_factor': 2,
     'conv1_out_channels': 16, 'conv2_out_channels': 32, 'use_sigmoid_out': False, 
@@ -214,6 +213,13 @@ class ExperimentalModel(nn.Module):
             self.weights.append(layer.weight)
             self.bias.append(layer.bias)
 
+    def quadratic_weights(self):
+        weights = []
+        for layer in list(self.features) + list(self.classifier):
+            if hasattr(layer, '_quadratic'):
+                weights.append(layer._quadratic.weight)
+        return weights
+                
     def dense(self, *args, **kwargs):
         if self.conf['use_spherical']:
             f = Spherical

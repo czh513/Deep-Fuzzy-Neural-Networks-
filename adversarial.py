@@ -196,8 +196,9 @@ def run(attack=None, model_path=None, model_device=None, dataset=None, batch_siz
         **attack_params
     }
     if json_out_path:
+        json_str = json.dumps(results)
         with open(json_out_path, 'at') as f:
-            json.dump(results, f)
+            f.write(json_str) # close it as soon as possible
             f.write('\n')
 
 if __name__ == "__main__":

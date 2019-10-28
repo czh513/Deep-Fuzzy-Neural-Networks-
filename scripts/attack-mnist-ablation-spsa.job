@@ -11,8 +11,11 @@ out_path=$2
 
 echo "" > $out_path # clear
 for model_path in $(ls $inp_dir/*.pkl)
+# for model_name in relog-minmaxout_2_4 relog-elliptical-maxout_4-sigmoid_out-max_fit_l1_1-overlay
 do
+    # model_path=$inp_dir/$model_name.pkl
     attack=SPSA
     python -u adversarial.py --dataset=mnist --attack=$attack --report_interval=10 \
-            --model_path=$model_path --json_out_path=$out_path --nb_iter=50
+            --model_path=$model_path --json_out_path=$out_path --nb_iter=50 --num_batches=15 &
 done
+wait

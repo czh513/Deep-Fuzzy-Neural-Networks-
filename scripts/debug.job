@@ -14,9 +14,8 @@ train() {
     name=$1
     second_param_onwards="${@:2}"
     echo "Training $name"
-    # use this for testing: --vgg_name=VGG4 --n_epochs=5
     python -u train.py cifar-10 --vgg_name='VGG16' --use_batchnorm=True --modification_start_layer=12 $second_param_onwards
 }
 
-train debugging --device=cuda:1 --use_relog=True --use_quadratic=True --use_maxout=max --max_folding_factor=4 --regularization=max-margin --l1=0.0001
+train debugging --device=cuda:1 --use_relog=True --use_quadratic=True --use_maxout=max --max_folding_factor=4 --regularization=max-margin --l2=0.1 --curvature_multiplier_inc=0.1
 echo -n "Finished: " && date

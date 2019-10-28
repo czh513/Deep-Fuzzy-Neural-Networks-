@@ -18,11 +18,15 @@ train() {
     python -u train.py cifar-10 --vgg_name=VGG16 --use_batchnorm=True --modification_start_layer=12 --out_path=$out_dir/$name.pkl $second_param_onwards &> $out_dir/$name.log
 }
 
-train relog-quadratic-maxout_4 --device=cuda:1 --use_relog=True --use_quadratic=True --use_maxout=max --max_folding_factor=4 --regularization=max-margin --l1=0.0001 &
-train relog-quadratic-maxout_4-sigmoid_out --device=cuda:0 --use_relog=True --use_sigmoid_out=True --use_quadratic=True --use_maxout=max --max_folding_factor=4 --regularization=max-margin --l1=0.0001 &
+# train relog-minmaxout_2_4-max_fit_l2 --device=cuda:1 --use_relog=True --use_maxout=minmax --max_folding_factor=4 --min_folding_factor=2 --regularization=max-fit --l2=0.01 --bias_l2=0.01 &
+# wait
+
+train relog-quadratic-max_fit_l2-maxout_4 --device=cuda:1 --use_relog=True --use_quadratic=True --use_maxout=max --max_folding_factor=4 --regularization=max-fit --l2=0.01 --bias_l2=0.01 &
+train relog-quadratic-max_fit_l2-maxout_4-sigmoid_out --device=cuda:0 --use_relog=True --use_sigmoid_out=True --use_quadratic=True --use_maxout=max --max_folding_factor=4 --regularization=max-fit --l2=0.01 --bias_l2=0.01 &
 wait 
 
-train relog-quadratic-maxout_4-sigmoid_out-scrambling --device=cuda:0 --use_relog=True --use_sigmoid_out=True --use_quadratic=True --use_maxout=max --max_folding_factor=4 --regularization=max-margin --l1=0.0001 --use_scrambling=True &
+train relog-quadratic-max_fit_l2-maxout_4-sigmoid_out-scrambling --device=cuda:0 --use_relog=True --use_sigmoid_out=True --use_quadratic=True --use_maxout=max --max_folding_factor=4 --regularization=max-fit --l2=0.01 --bias_l2=0.01 --use_scrambling=True &
+train relog-quadratic-max_fit_l2-maxout_4-sigmoid_out-overlay --device=cuda:1 --use_relog=True --use_sigmoid_out=True --use_quadratic=True --use_maxout=max --max_folding_factor=4 --regularization=max-fit --l2=0.01 --bias_l2=0.01 --use_overlay=True &
 wait
 
 echo -n "Finished: " && date
