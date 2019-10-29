@@ -50,3 +50,14 @@ output/ablation-cifar10-results2.json <- output/ablation-cifar10-models2
     sbatch scripts/attack-cifar10-ablation-spsa.job $INPUT0 $OUTPUT0
     echo "Jobs submitted, please wait for a few hours"
 
+output/natural-mnist-results.json <- output/ablation-mnist-models
+    echo "" > $OUTPUT0 # clear
+    sbatch scripts/evaluate-natural-mnist.job $INPUT0 $OUTPUT0
+
+output/natural-cifar10-results.json <- output/ablation-cifar10-models
+    echo "" > $OUTPUT0 # clear
+    sbatch scripts/evaluate-natural-cifar10.job $INPUT0 $OUTPUT0
+    
+output/natural-cifar10-results2.json <- output/ablation-cifar10-models2
+    echo "" > $OUTPUT0 # clear
+    sbatch scripts/evaluate-natural-cifar10.job $INPUT0 $OUTPUT0

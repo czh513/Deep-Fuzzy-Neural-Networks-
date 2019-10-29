@@ -764,7 +764,78 @@ Rerun CIFAR-10 training:
     Submitted batch job 7040123
     Job submitted, please wait for >1 day
 
+Submitting a new job for max confidence attack:
 
-TODO: measure average confidence on **only perturbed** images **under max-confidence attack**.
+    (base) Minhs-MacBook-Pro:newlogic cumeo$ git log | head
+    commit 5f7a901ee8242b98a1ea05123b87d85cc20fc53d
+    Author: Minh Le <minhle.r7@gmail.com>
+    Date:   Mon Oct 28 23:13:38 2019 +0100
 
-TODO: blackbox attack: https://github.com/tensorflow/cleverhans/blob/688fe64de5bda82895cc8729348a5d761c5e7813/tests_tf/test_mnist_blackbox.py
+        better plots, max confidence attack
+
+    [minhle@int2 newlogic]$ drake output/ablation-mnist-results3.json
+    --- 7. Running (missing output): /nfs/home2/minhle/newlogic/././output/ablation-mnist-results3.json <- /nfs/home2/minhle/newlogic/././output/ablation-mnist-models
+    Submitted batch job 7040880
+    Jobs submitted, please wait for a few hours
+
+# Tue 29 Oct
+
+CIFAR-10 models finished training.
+
+    [minhle@int2 newlogic]$ tail -n 5 output/ablation-cifar10-models*/*.log
+    ==> output/ablation-cifar10-models2/relog-quadratic-max_fit_l2-maxout_4.log <==
+    300 / 391 : Loss: 0.099 | Acc: 96.452% (37161/38528)
+    Test eval: Loss: 0.482 | Acc: 87.200% (8720/10000)
+
+    ==> output/ablation-cifar10-models2/relog-quadratic-max_fit_l2-maxout_4-sigmoid_out.log <==
+    300 / 391 : Loss: 0.036 | Acc: 74.234% (28601/38528)
+    Test eval: Loss: 0.038 | Acc: 72.840% (7284/10000)
+
+    ==> output/ablation-cifar10-models2/relog-quadratic-max_fit_l2-maxout_4-sigmoid_out-overlay.log <==
+    300 / 391 : Loss: 0.039 | Acc: 72.210% (27821/38528)
+    Test eval: Loss: 0.055 | Acc: 68.970% (6897/10000)
+
+    ==> output/ablation-cifar10-models2/relog-quadratic-max_fit_l2-maxout_4-sigmoid_out-scrambling.log <==
+    300 / 391 : Loss: 0.036 | Acc: 74.356% (28648/38528)
+    Test eval: Loss: 0.066 | Acc: 58.380% (5838/10000)
+
+    ==> output/ablation-cifar10-models/relog.log <==
+    300 / 391 : Loss: 0.106 | Acc: 96.270% (37091/38528)
+    Test eval: Loss: 0.458 | Acc: 87.490% (8749/10000)
+
+    ==> output/ablation-cifar10-models/relog-maxout_4.log <==
+    300 / 391 : Loss: 0.093 | Acc: 96.782% (37288/38528)
+    Test eval: Loss: 0.472 | Acc: 87.330% (8733/10000)
+
+    ==> output/ablation-cifar10-models/relog-minmaxout_2_4.log <==
+    300 / 391 : Loss: 0.191 | Acc: 93.475% (36014/38528)
+    Test eval: Loss: 0.518 | Acc: 85.180% (8518/10000)
+
+    ==> output/ablation-cifar10-models/relog-minmaxout_2_4-max_fit_l2.log <==
+    300 / 391 : Loss: 0.184 | Acc: 93.537% (36038/38528)
+    Test eval: Loss: 0.459 | Acc: 86.230% (8623/10000)
+
+    ==> output/ablation-cifar10-models/relu.log <==
+    300 / 391 : Loss: 0.069 | Acc: 97.501% (37565/38528)
+    Test eval: Loss: 0.515 | Acc: 87.190% (8719/10000)
+
+<s>Got max-confidence results, it turns out sigmoid out and negative training is actually quite effective</s> --> [checked on clean images](notebooks/check-prediction-probs.ipynb),
+sigmoid out generally give low probability, both on training and test set.
+
+It could be because the positive label is drown out by 9 others for every image.
+Sigmoid out models perform poorly on CIFAR-10, perhaps that's related?
+Should I "fix" it? What if uncertainty is a virtue?
+
+Submitted evaluation:
+
+    [minhle@int2 newlogic]$ drake output/ablation-cifar10-results.json output/ablation-cifar10-results2.json
+
+    --- 9. Running (missing output): /nfs/home2/minhle/newlogic/././output/ablation-cifar10-results.json <- /nfs/home2/minhle/newlogic/././output/ablation-cifar10-models
+    Submitted batch job 7044401
+    Submitted batch job 7044402
+    Jobs submitted, please wait for a few hours
+
+    --- 10. Running (missing output): /nfs/home2/minhle/newlogic/././output/ablation-cifar10-results2.json <- /nfs/home2/minhle/newlogic/././output/ablation-cifar10-models2
+    Submitted batch job 7044403
+    Submitted batch job 7044404
+

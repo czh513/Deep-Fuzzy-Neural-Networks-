@@ -1,0 +1,16 @@
+#!/bin/bash
+#SBATCH -t 5:00:00
+#SBATCH -p normal
+#SBATCH --export=NONE
+
+. scripts/init-cartesius.sh
+. venv/bin/activate
+
+inp_dir=$1
+out_path=$2
+
+for model_path in $(ls $inp_dir/*.pkl)
+do
+    python natural.py --dataset=mnist --model_path=$model_path >> $out_path &
+done
+wait
