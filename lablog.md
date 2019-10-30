@@ -867,7 +867,7 @@ just gets 73%, it can't be because of a lack of capacity. Also, when you add
 negative examples, the performance degrades further to 69%.
 
 Submitted a job to train CIFAR-10 with modified MSE and another to do
-subtractive ablation.
+**subtractive** ablation.
 
     (base) Minhs-MacBook-Pro:newlogic cumeo$ git log | head
     commit 9f78c60ce4d0c5f899e6131adc9d29263f5157d0
@@ -888,11 +888,19 @@ we get better results. On CIFAR-10:
 - experimented with quadratic but doesn't have effect as for elliptical?
 - however, elliptical seems to require more capacity, tried using the same number of neurons but got significantly lower results on clean. trying with double num of neurons in modified layers...?
 
-Giving it another try: try elliptical again with increased capacity, job submitted:
-
-    [minhle@int1 newlogic]$ drake +=output/ablation-cifar10-models2
-    --- 3. Running (forced): /nfs/home2/minhle/newlogic/././output/ablation-cifar10-models2 <- /nfs/home2/minhle/newlogic/././train.py
-    Submitted batch job 7051099
-
+Giving it another try: try elliptical again with increased capacity.
 The server seems busy right now... SPSA probably will take 2 more days...
 cancelling it to focus on getting new models.
+
+So it seems that training models with only a few last layers modified is easier
+but the improvement on adversarial images is modest. Will we be able to train
+a full VGG16 model with elliptical units? I did fail on this task before but 
+I didn't use gradual increase of quadratic units then...
+
+    [minhle@int2 newlogic]$ drake +=output/ablation-cifar10-models2/
+    --- 3. Running (forced): /nfs/home2/minhle/newlogic/././output/ablation-cifar10-models2 <- /nfs/home2/minhle/newlogic/././train.py
+    Submitted batch job 7051769
+    Job submitted, please wait for >1 day
+
+Finished "locality" section with interesting result: MSE+Overlay is necessary
+and sufficient to solve random noise. I didn't expect this at all.

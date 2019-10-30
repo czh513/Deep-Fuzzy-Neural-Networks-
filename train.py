@@ -268,7 +268,7 @@ class TrainingService_CIFAR10(TrainingService):
             'regularization': None, 'regularization_start_epoch': 10, 'l1': 0, 'l2': 0,
             'bias_l1': 0, 'bias_l2': 0, 'use_scrambling': False, 'use_overlay': False,
             'use_spherical': False, 'use_elliptical': False, 'use_quadratic': False, 
-            'use_homemade_initialization': False
+            'use_homemade_initialization': False, 'log_strength_inc': 0.001
         }
         unrecognized_params = [k for k in kwargs
                                if not (k in models.VGG.config_defaults or k in config_defaults)]
@@ -280,6 +280,7 @@ class TrainingService_CIFAR10(TrainingService):
 
         conf = {**config_defaults, **kwargs}
         print('Using training service config:', conf)
+        models.log_strength_inc = float(conf['log_strength_inc'])
         self.trainloader = torch.utils.data.DataLoader(self.trainset, batch_size=conf['train_batch_size'], shuffle=True, num_workers=2)
         self.testloader = torch.utils.data.DataLoader(self.testset, batch_size=256, shuffle=False, num_workers=2)
         # tried ADAM already: it works for ReLU but fail to train ReLog (it doesn't just overfit,
