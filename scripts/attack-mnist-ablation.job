@@ -9,7 +9,7 @@
 inp_dir=$1
 out_path=$2
 
-for model_name in relog-elliptical-maxout_4-max_fit_l1_1 relog-elliptical-maxout_4 relog-elliptical-maxout_4-sigmoid_out-max_fit_l1_1 relog-elliptical-maxout_4-sigmoid_out-max_fit_l1_1-scrambling relog-maxout_4 relog relu
+for model_name in relog-minmaxout_2_4 relog-elliptical-maxout_4-max_fit_l1_1 relog-elliptical-maxout_4 relog-maxout_4 relog relu
 do
     model_path=$inp_dir/$model_name.pkl
     for attack in FGM_inf FGM_L2 CW BIM

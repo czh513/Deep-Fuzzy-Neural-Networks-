@@ -29,7 +29,7 @@ def evaluate(dataset=None, model_path=None):
         raise ValueError('Unsupported dataset: ' + str(dataset))
     test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=100, shuffle=False)
     model = torch.load(model_path, map_location=torch.device('cpu'))
-    print('Evaluating %s on %d (clean)' % (model_path, dataset), file=sys.stderr)
+    print('Evaluating %s on %s (clean)' % (model_path, dataset), file=sys.stderr)
 
     accuracies = []
     max_probs = []

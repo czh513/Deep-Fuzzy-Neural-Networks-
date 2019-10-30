@@ -184,7 +184,7 @@ class FoldingMaxout(nn.Module):
     
 config_defaults = {
     'use_relog': False, 'modification_start_layer': 0, 'use_maxout': '', 'max_folding_factor': 4, 'min_folding_factor': 2,
-    'conv1_out_channels': 16, 'conv2_out_channels': 32, 'use_sigmoid_out': False, 
+    'conv1_out_channels': 16, 'conv2_out_channels': 32,
     'use_spherical': False, 'use_elliptical': False, 'use_quadratic': False, 'use_batchnorm': False,
     'use_homemade_initialization': False, 'vgg_name': 'VGG16'
 }
@@ -303,10 +303,7 @@ class CNN(ExperimentalModel):
             self.wrap_linear(cnn1) + [nn.MaxPool2d(kernel_size=2)]
             + self.wrap_linear(cnn2) + [nn.MaxPool2d(kernel_size=2)]
         ))
-        self.classifier = nn.Sequential(*(
-            self.wrap_linear(out, activ=False) 
-            + ([nn.Sigmoid()] if self.conf['use_sigmoid_out'] else [])
-        ))
+        self.classifier = nn.Sequential(*self.wrap_linear(out, activ=False))
 
 
 cfg = {
@@ -327,10 +324,7 @@ class VGG(ExperimentalModel):
         self.n_classes = 10
         self.features, conv_layers, last_layer_size = self._make_layers(cfg[vgg_name])
         classifier = self.dense(last_layer_size, 10 * self.conf['folding_factor'])
-        self.classifier = nn.Sequential(*(
-            self.wrap_linear(classifier, activ=False)
-            + ([nn.Sigmoid()] if self.conf['use_sigmoid_out'] else [])
-        ))
+        self.classifier = nn.Sequential(*self.wrap_linear(classifier, activ=False))
         self.extract_weights_and_bias(conv_layers + [classifier])
 
     def _make_layers(self, cfg):

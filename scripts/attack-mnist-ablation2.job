@@ -16,7 +16,7 @@ execute_attack() {
             --report_interval=5 --model_device=cpu # using CPUs to avoid OOM on a GPU
 }
 
-for model_name in relog-minmaxout_2_4 relog-elliptical-maxout_4-sigmoid_out-max_fit_l1_1-overlay
+for model_name in relog-elliptical-maxout_4-mse-max_fit_l1_1 relog-elliptical-maxout_4-mse-max_fit_l1_1-overlay
 do
     model_path=$inp_dir/$model_name.pkl
     execute_attack FGM_inf $model_path &

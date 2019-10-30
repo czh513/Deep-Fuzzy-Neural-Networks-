@@ -31,13 +31,16 @@ def tstd(vals):
 class TrainingService(object):
 
     def compute_loss(self, epoch, cnn, train_x, train_y, output, conf):
-        loss_func = nn.MSELoss() if conf['use_sigmoid_out'] else nn.CrossEntropyLoss()
         orig_train_y = train_y
-        if conf['use_sigmoid_out']:
+        if conf['use_mse']:
             train_y = one_hot(train_y, num_classes=self.num_classes).float()
+            output = output.sigmoid()
+            loss_func = nn.MSELoss()
+        else:
+            loss_func = nn.CrossEntropyLoss()
         loss = loss_func(output, train_y)
         if (conf['use_scrambling'] or conf['use_overlay']) and epoch >= 1:
-            assert conf['use_sigmoid_out'], "Softmax networks can't handle all-negative input"
+            assert conf['use_mse'], "Softmax networks can't handle all-negative input"
             f = self.scramble if conf['use_scrambling'] else OverlayNegativeSamples()
             neg_x = f(train_x, orig_train_y).to(self.device)
             neg_y = torch.zeros(neg_x.shape[0], self.num_classes).to(self.device)
@@ -104,7 +107,7 @@ class TrainingService_MNIST(TrainingService):
         print(cnn)  # net architecture
 
         config_defaults = {
-            'use_sigmoid_out': False, 'lr': 0.001, 'out_path': None, 'train_batch_size': 64, 
+            'use_mse': False, 'lr': 0.001, 'out_path': None, 'train_batch_size': 64, 
             'regularization': None, 'regularization_start_epoch': 2, 'l1': 0, 'l2': 0, 
             'bias_l1': 0, 'bias_l2': 0, 'use_scrambling': False, 'use_overlay': False,
             'use_spherical': False, 'use_elliptical': False, 'use_quadratic': False
@@ -225,7 +228,8 @@ class TrainingService_CIFAR10(TrainingService):
                 inputs, targets = inputs.to(self.device), targets.to(self.device)
                 outputs, _ = net(inputs)
 
-                if conf['use_sigmoid_out']:
+                if conf['use_mse']:
+                    outputs = outputs.sigmoid()
                     loss_targets = one_hot(targets, num_classes=10).float()
                     loss_func = nn.MSELoss()
                 else:
@@ -245,7 +249,7 @@ class TrainingService_CIFAR10(TrainingService):
 
     def build_and_train(self, curvature_multiplier_inc=1e-4, **kwargs):
         config_defaults = {
-            'use_sigmoid_out': False, 'lr': 0.01, 'out_path': None, 'train_batch_size': 128, 
+            'use_mse': False, 'lr': 0.01, 'out_path': None, 'train_batch_size': 128, 
             'regularization': None, 'regularization_start_epoch': 10, 'l1': 0, 'l2': 0,
             'bias_l1': 0, 'bias_l2': 0, 'use_scrambling': False, 'use_overlay': False,
             'use_spherical': False, 'use_elliptical': False, 'use_quadratic': False, 

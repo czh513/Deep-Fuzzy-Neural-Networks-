@@ -19,11 +19,10 @@ train() {
 }
 
 train relog-quadratic-max_fit_l2-maxout_4 --device=cuda:1 --use_relog=True --use_quadratic=True --use_maxout=max --max_folding_factor=4 --regularization=max-fit --l2=0.01 --bias_l2=0.01 &
-train relog-quadratic-max_fit_l2-maxout_4-sigmoid_out --device=cuda:0 --use_relog=True --use_sigmoid_out=True --use_quadratic=True --use_maxout=max --max_folding_factor=4 --regularization=max-fit --l2=0.01 --bias_l2=0.01 &
 wait 
 
-train relog-quadratic-max_fit_l2-maxout_4-sigmoid_out-scrambling --device=cuda:0 --use_relog=True --use_sigmoid_out=True --use_quadratic=True --use_maxout=max --max_folding_factor=4 --regularization=max-fit --l2=0.01 --bias_l2=0.01 --use_scrambling=True &
-train relog-quadratic-max_fit_l2-maxout_4-sigmoid_out-overlay --device=cuda:1 --use_relog=True --use_sigmoid_out=True --use_quadratic=True --use_maxout=max --max_folding_factor=4 --regularization=max-fit --l2=0.01 --bias_l2=0.01 --use_overlay=True &
+train relog-quadratic-max_fit_l2-maxout_4-mse --device=cuda:0 --use_relog=True --use_mse=True --use_quadratic=True --use_maxout=max --max_folding_factor=4 --regularization=max-fit --l2=0.01 --bias_l2=0.01 &
+train relog-quadratic-max_fit_l2-maxout_4-mse-overlay --device=cuda:1 --use_relog=True --use_mse=True --use_quadratic=True --use_maxout=max --max_folding_factor=4 --regularization=max-fit --l2=0.01 --bias_l2=0.01 --use_overlay=True &
 wait
 
 echo -n "Finished: " && date

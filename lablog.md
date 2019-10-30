@@ -824,7 +824,8 @@ sigmoid out generally give low probability, both on training and test set.
 
 It could be because the positive label is drown out by 9 others for every image.
 Sigmoid out models perform poorly on CIFAR-10, perhaps that's related?
-Should I "fix" it? What if uncertainty is a virtue?
+Should I "fix" it? <s>What if uncertainty is a virtue?</s> --> no, it's not.
+It's simply an artifact of applying sigmoid and softmax consequentially.
 
 Submitted evaluation:
 
@@ -839,3 +840,7 @@ Submitted evaluation:
     Submitted batch job 7044403
     Submitted batch job 7044404
 
+Turns out sticking sigmoid as the last layer of a network is a terrible idea.
+It's horrible that now I need to retrain a bunch of model, rerun attacks,
+and adapt various scripts... I really don't have time for this so I'll drop
+max-confidence attack.
