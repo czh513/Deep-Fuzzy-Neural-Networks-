@@ -33,7 +33,7 @@ class WeightedMSELoss(object):
     def __init__(self, possitive_weight_factor):
         self.possitive_weight_factor = possitive_weight_factor
 
-    def __call__(predicted, labels):
+    def __call__(self, predicted, labels):
         raw_loss = mse_loss(predicted, labels, reduction='none')
         unit_weights = torch.ones_like(raw_loss)
         possitive_weights = unit_weights * self.possitive_weight_factor
@@ -49,7 +49,7 @@ class TrainingService(object):
             output = output.sigmoid()
             if conf['use_scrambling'] or conf['use_overlay']:
                 loss_func = WeightedMSELoss(19) # hard code for now...
-            else
+            else:
                 loss_func = WeightedMSELoss(9) # hard code for now...
         else:
             loss_func = nn.CrossEntropyLoss()
