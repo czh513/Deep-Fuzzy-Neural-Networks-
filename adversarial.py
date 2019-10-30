@@ -163,7 +163,7 @@ def run(attack=None, model_path=None, model_device=None, dataset=None, batch_siz
     elif attack == "SPSA":
         attack_func = SPSA
         default_attack_params = {
-            'eps': 0.3, 
+            'eps': 0.3,
             'nb_iter': 5 # tried 50 but it runs super slowly
         }
     elif attack == 'MaxConf':

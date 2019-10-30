@@ -1,7 +1,7 @@
 import os
 import torch
 import torch.nn as nn
-from torch.nn.functional import one_hot
+from torch.nn.functional import one_hot, mse_loss
 import torch.utils.data as Data
 import torchvision
 import matplotlib.pyplot as plt
@@ -28,6 +28,18 @@ def tstd(vals):
     vals = [val.view(-1) for val in vals]
     return torch.cat(vals).std()
 
+class WeightedMSELoss(object):
+
+    def __init__(self, possitive_weight_factor):
+        self.possitive_weight_factor = possitive_weight_factor
+
+    def __call__(predicted, labels):
+        raw_loss = mse_loss(predicted, labels, reduction='none')
+        unit_weights = torch.ones_like(raw_loss)
+        possitive_weights = unit_weights * self.possitive_weight_factor
+        weighted_loss = raw_loss * torch.where(labels == 1, possitive_weights, unit_weights)
+        return weighted_loss.mean()
+
 class TrainingService(object):
 
     def compute_loss(self, epoch, cnn, train_x, train_y, output, conf):
@@ -35,7 +47,10 @@ class TrainingService(object):
         if conf['use_mse']:
             train_y = one_hot(train_y, num_classes=self.num_classes).float()
             output = output.sigmoid()
-            loss_func = nn.MSELoss()
+            if conf['use_scrambling'] or conf['use_overlay']:
+                loss_func = WeightedMSELoss(19) # hard code for now...
+            else
+                loss_func = WeightedMSELoss(9) # hard code for now...
         else:
             loss_func = nn.CrossEntropyLoss()
         loss = loss_func(output, train_y)

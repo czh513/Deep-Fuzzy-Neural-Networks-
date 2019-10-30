@@ -1,0 +1,29 @@
+#!/bin/bash
+#SBATCH -t 1-00:00:00
+#SBATCH -p gpu
+#SBATCH --export=NONE
+
+. scripts/init-cartesius.sh
+. venv/bin/activate
+
+echo -n "Started: " && date
+
+out_dir=$1
+
+train() {
+    name=$1
+    second_param_onwards="${@:2}"
+    echo "Training $name"
+    python -u train.py mnist --n_epochs=20 --lr=0.001 --out_path=$out_dir/$name.pkl $second_param_onwards &> $out_dir/$name.log
+}
+
+# don't use "\" to put parameters on the next line, the method will ignore them...
+train relog-elliptical-maxout_4-mse-overlay --device=cuda:0 --use_relog=True --use_elliptical=True --use_mse=True --use_maxout=max --max_folding_factor=4 --use_overlay=True &
+train relog-elliptical-mse-max_fit_l1_1-overlay --device=cuda:1 --use_relog=True --use_elliptical=True --use_mse=True --regularization=max-fit --bias_l1=1 --l1=1 --use_overlay=True &
+wait
+
+train relog-maxout_4-mse-max_fit_l1_1-overlay --device=cuda:0 --use_relog=True --use_mse=True --use_maxout=max --max_folding_factor=4 --regularization=max-fit --bias_l1=1 --l1=1 --use_overlay=True &
+train relu-elliptical-maxout_4-mse-max_fit_l1_1-overlay --device=cuda:1 --use_elliptical=True --use_mse=True --use_maxout=max --max_folding_factor=4 --regularization=max-fit --bias_l1=1 --l1=1 --use_overlay=True &
+wait
+
+echo -n "Finished: " && date

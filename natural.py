@@ -8,6 +8,7 @@ import torchvision
 import numpy as np
 import json
 import sys
+from train import cifar_stats
 
 def compute_max_probs(preds):
     preds_softmax = softmax(preds, axis=1)
@@ -18,12 +19,16 @@ def evaluate(dataset=None, model_path=None):
     if dataset == 'mnist':
         test_dataset = torchvision.datasets.MNIST(
             root='./mnist', train=False, download=False,
-            transform=torchvision.transforms.ToTensor(), 
+            transform=torchvision.transforms.ToTensor()
         )
     elif dataset == 'cifar10':
+        transform_test = torchvision.transforms.Compose([
+            torchvision.transforms.ToTensor(),
+            torchvision.transforms.Normalize(*cifar_stats)
+        ])
         test_dataset = torchvision.datasets.CIFAR10(
             root='./cifar10', train=False, download=False,
-            transform=torchvision.transforms.ToTensor(), 
+            transform=transform_test,
         )
     else:
         raise ValueError('Unsupported dataset: ' + str(dataset))
