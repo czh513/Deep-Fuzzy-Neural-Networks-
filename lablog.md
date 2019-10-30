@@ -844,3 +844,55 @@ Turns out sticking sigmoid as the last layer of a network is a terrible idea.
 It's horrible that now I need to retrain a bunch of model, rerun attacks,
 and adapt various scripts... I really don't have time for this so I'll drop
 max-confidence attack.
+
+Evaluating CIFAR-10 models on natural images:
+
+    [minhle@int2 newlogic]$ rm output/natural-cifar10-results.json output/natural-cifar10-results2.json
+    [minhle@int2 newlogic]$ drake output/natural-cifar10-results.json output/natural-cifar10-results2.json
+    --- 12. Running (missing output): /nfs/home2/minhle/newlogic/././output/natural-cifar10-results.json <- /nfs/home2/minhle/newlogic/././output/ablation-cifar10-models
+    Submitted batch job 7044958
+    --- 13. Running (missing output): /nfs/home2/minhle/newlogic/././output/natural-cifar10-results2.json <- /nfs/home2/minhle/newlogic/././output/ablation-cifar10-models2
+    Submitted batch job 7044959
+
+# Wed 30 Oct
+
+Checked the output of an MSE-trained CIFAR10 model, it is not so certain about
+its predictions:
+
+![](images/unweighted-mse-trained-cifar10-model-probs.png)
+
+Could it be because of the fact that positive labels have too small influence
+compared to negative ones? The very same architecture reaches 87% and MSE
+just gets 73%, it can't be because of a lack of capacity. Also, when you add
+negative examples, the performance degrades further to 69%.
+
+Submitted a job to train CIFAR-10 with modified MSE and another to do
+subtractive ablation.
+
+    (base) Minhs-MacBook-Pro:newlogic cumeo$ git log | head
+    commit 9f78c60ce4d0c5f899e6131adc9d29263f5157d0
+    Author: Minh Le <minhle.r7@gmail.com>
+    Date:   Wed Oct 30 14:03:44 2019 +0100
+
+        fix weighted mse bug
+
+    [minhle@int2 newlogic]$ squeue | grep minh
+            7047318       gpu train-mn   minhle PD       0:00      1 (Resources)
+            7047317       gpu train-ci   minhle  R       1:59      1 gcn66
+            7044402    normal attack-c   minhle  R   16:42:31      1 tcn1524
+            7044404    normal attack-c   minhle  R   16:42:31      1 tcn1526
+
+Trying to interpret the results... On MNIST, any time we increase locality,
+we get better results. On CIFAR-10:
+
+- experimented with quadratic but doesn't have effect as for elliptical?
+- however, elliptical seems to require more capacity, tried using the same number of neurons but got significantly lower results on clean. trying with double num of neurons in modified layers...?
+
+Giving it another try: try elliptical again with increased capacity, job submitted:
+
+    [minhle@int1 newlogic]$ drake +=output/ablation-cifar10-models2
+    --- 3. Running (forced): /nfs/home2/minhle/newlogic/././output/ablation-cifar10-models2 <- /nfs/home2/minhle/newlogic/././train.py
+    Submitted batch job 7051099
+
+The server seems busy right now... SPSA probably will take 2 more days...
+cancelling it to focus on getting new models.

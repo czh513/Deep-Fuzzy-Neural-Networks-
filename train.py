@@ -117,7 +117,7 @@ class TrainingService_MNIST(TrainingService):
         )
 
     def build_and_train(self, n_epochs=20, **kwargs):
-        model_kwargs = {k:v for k, v in kwargs.items() if k in models.config_defaults}
+        model_kwargs = {k:v for k, v in kwargs.items() if k in models.CNN.config_defaults}
         cnn = models.CNN(**model_kwargs)
         print(cnn)  # net architecture
 
@@ -271,14 +271,15 @@ class TrainingService_CIFAR10(TrainingService):
             'use_homemade_initialization': False
         }
         unrecognized_params = [k for k in kwargs
-                               if not (k in models.config_defaults or k in config_defaults)]
+                               if not (k in models.VGG.config_defaults or k in config_defaults)]
         assert not unrecognized_params, 'Unrecognized parameter: ' + str(unrecognized_params) 
 
-        model_kwargs = {k:v for k, v in kwargs.items() if k in models.config_defaults}
+        model_kwargs = {k:v for k, v in kwargs.items() if k in models.VGG.config_defaults}
         net = models.VGG(**model_kwargs)
         print(net)
 
         conf = {**config_defaults, **kwargs}
+        print('Using training service config:', conf)
         self.trainloader = torch.utils.data.DataLoader(self.trainset, batch_size=conf['train_batch_size'], shuffle=True, num_workers=2)
         self.testloader = torch.utils.data.DataLoader(self.testset, batch_size=256, shuffle=False, num_workers=2)
         # tried ADAM already: it works for ReLU but fail to train ReLog (it doesn't just overfit,

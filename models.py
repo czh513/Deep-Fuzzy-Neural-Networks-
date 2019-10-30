@@ -182,19 +182,13 @@ class FoldingMaxout(nn.Module):
     def extra_repr(self):
         return 'use_min=%s, k=%s' % (self.use_min, self.k)
     
-config_defaults = {
-    'use_relog': False, 'modification_start_layer': 0, 'use_maxout': '', 'max_folding_factor': 4, 'min_folding_factor': 2,
-    'conv1_out_channels': 16, 'conv2_out_channels': 32,
-    'use_spherical': False, 'use_elliptical': False, 'use_quadratic': False, 'use_batchnorm': False,
-    'use_homemade_initialization': False, 'vgg_name': 'VGG16'
-}
-
 class ExperimentalModel(nn.Module):
 
     def __init__(self, **kwargs):
         super(ExperimentalModel, self).__init__()
-        assert all(k in config_defaults for k in kwargs)
-        self.conf = {**config_defaults, **kwargs}
+        assert all(k in self.config_defaults for k in kwargs)
+        self.conf = {**self.config_defaults, **kwargs}
+        print('Using model config:', self.conf)
         assert sum([self.conf['use_spherical'], self.conf['use_elliptical'], 
                     self.conf['use_quadratic']]) in (0, 1), \
                 "Can only use one in spherical, elliptical, and quadratic"
@@ -278,6 +272,13 @@ class ExperimentalModel(nn.Module):
 
 class CNN(ExperimentalModel):
 
+    config_defaults = {
+        'use_relog': False, 'use_maxout': '', 'max_folding_factor': 4, 'min_folding_factor': 2,
+        'conv1_out_channels': 16, 'conv2_out_channels': 32,
+        'use_spherical': False, 'use_elliptical': False, 'use_quadratic': False, 'use_batchnorm': False,
+        'use_homemade_initialization': False
+    }
+
     def __init__(self, **kwargs):
         super(CNN, self).__init__(**kwargs)
         self.n_classes = 10
@@ -319,6 +320,12 @@ cfg = {
 
 class VGG(ExperimentalModel):
 
+    config_defaults = {
+        'use_relog': False, 'modification_start_layer': 0, 'use_maxout': '', 'max_folding_factor': 4, 'min_folding_factor': 2,
+        'use_spherical': False, 'use_elliptical': False, 'use_quadratic': False, 'use_batchnorm': False,
+        'use_homemade_initialization': False, 'vgg_name': 'VGG16', 'capacity_factor': 1
+    }
+
     def __init__(self, vgg_name="VGG11", **kwargs):
         super(VGG, self).__init__(**kwargs)
         self.n_classes = 10
@@ -335,6 +342,7 @@ class VGG(ExperimentalModel):
                 layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
             elif isinstance(x, int):
                 if layer_no >= self.conf['modification_start_layer']:
+                    x = int(x*self.conf['capacity_factor'])
                     conv = self.conv(in_channels, x * self.conf['folding_factor'], kernel_size=3, padding=1)
                     layers += self.wrap_linear(conv, layer_no=layer_no)
                 else:
