@@ -15,7 +15,7 @@ train() {
     second_param_onwards="${@:2}"
     echo "Training $name"
     # use this for testing: --vgg_name=VGG4 
-    python -u train.py cifar-10 --vgg_name=VGG16 --use_batchnorm=True --modification_start_layer=0 --out_path=$out_dir/$name.pkl $second_param_onwards &> $out_dir/$name.log
+    python -u train.py cifar-10 --report_interval=50 --vgg_name=VGG16 --use_batchnorm=True --modification_start_layer=0 --out_path=$out_dir/$name.pkl $second_param_onwards &> $out_dir/$name.log
 }
 
 train relu-maxout-elliptical --device=cuda:0 --use_maxout=max --max_folding_factor=2 --use_elliptical=True --capacity_factor=2 &

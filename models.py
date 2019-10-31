@@ -69,10 +69,13 @@ class ReLog(nn.Module):
 
 curvature_multiplier_start = 0
 curvature_multiplier_inc = 0.001
+curvature_multiplier_stop = 1
 
 def update_curvature_multiplier(m):
     if m.training:
-        m.multiplier = min(1, m.multiplier + curvature_multiplier_inc)
+        m.multiplier = min(
+            curvature_multiplier_stop, 
+            m.multiplier + curvature_multiplier_inc)
     return max(0, m.multiplier)
 
 class AbsLinear(nn.Linear):
@@ -94,7 +97,7 @@ class Spherical(nn.Linear):
     def forward(self, input):
         output = super(Spherical, self).forward(input)
         a = 0.5 * update_curvature_multiplier(self)
-        output += -a * (input*input).mean(axis=1, keepdim=True) + a
+        output += -a * (input*input).mean(axis=1, keepdim=True)
         return output
 
 class Elliptical(nn.Linear):
@@ -109,7 +112,7 @@ class Elliptical(nn.Linear):
         linear_term = super(Elliptical, self).forward(input)
         quadratic_term = self._quadratic.forward(input*input)
         a = update_curvature_multiplier(self)
-        return -a * quadratic_term + a + linear_term
+        return -a * quadratic_term + linear_term
 
 class Quadratic(Elliptical):
 
@@ -135,7 +138,7 @@ class SphericalCNN(nn.Conv2d):
     def forward(self, input):
         output = super(SphericalCNN, self).forward(input)
         a = 0.5 * update_curvature_multiplier(self)
-        output += -a * self._cnn_mean.forward(input*input) + a
+        output += -a * self._cnn_mean.forward(input*input)
         return output
 
 class EllipticalCNN(nn.Conv2d):
@@ -150,7 +153,7 @@ class EllipticalCNN(nn.Conv2d):
         linear_term = super(EllipticalCNN, self).forward(input)
         quadratic_term = self._quadratic.forward(input*input)
         a = update_curvature_multiplier(self)
-        return -a * quadratic_term + a + linear_term
+        return -a * quadratic_term + linear_term
 
 class QuadraticCNN(nn.Conv2d):
 
@@ -359,3 +362,21 @@ class VGG(ExperimentalModel):
                 raise "Unrecognized config token: %s" % str(x)
         layers += [nn.AvgPool2d(kernel_size=1, stride=1)]
         return nn.Sequential(*layers), conv_layers, in_channels
+
+def extract_curvature_strength(model):
+    multipliers = [layer.multiplier for layer in model.features
+                   if hasattr(layer, 'multiplier')]
+    if len(multipliers) > 0:
+        multiplier, = list(set(multipliers)) # make sure they're the same
+        return multiplier
+    else:
+        return float('nan')
+
+def extract_log_strength(model):
+    log_strengths = [layer.log_strength for layer in model.features
+                   if hasattr(layer, 'log_strength')]
+    if len(log_strengths) > 0:
+        log_strength, = list(set(log_strengths)) # make sure they're the same
+        return log_strength
+    else:
+        return float('nan')

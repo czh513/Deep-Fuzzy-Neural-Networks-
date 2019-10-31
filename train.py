@@ -84,6 +84,13 @@ class TrainingService(object):
                     loss += conf['bias_l2'] * tmean(b*b.abs() for b in cnn.bias) # notice: signed
         return loss
 
+def print_control_params(net):
+    # tried measuring all weights and quadratic weights here but mean and std
+    # weren't helpful. whatever changes they have they don't reflect on overall stats
+    print('Curvature multiplier: %.4f, log strength %.4f'
+        %(models.extract_curvature_strength(net),
+            models.extract_log_strength(net)))
+
 
 class TrainingService_MNIST(TrainingService):
 
@@ -179,12 +186,11 @@ cifar_stats = ((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
 class TrainingService_CIFAR10(TrainingService):
 
     def __init__(self, home_dir, normalize_data, device='cpu', gaussian_noise_epsilon=0.3,
-                 num_batches_per_epoch=-1, report_interval=150):
+                 num_batches_per_epoch=-1):
         self.home_dir = home_dir
         self.prepare_data(normalize_data, gaussian_noise_epsilon)
         self.device = device
         self.num_batches_per_epoch = num_batches_per_epoch # set to a small value for testing
-        self.report_interval = report_interval
         self.scramble = ChoiceScramble([PixelScramble(), BlockScramble(3), BlockScramble(9)])
         self.num_classes = 10
 
@@ -211,26 +217,29 @@ class TrainingService_CIFAR10(TrainingService):
         train_loss = 0
         correct = 0
         total = 0
-        for batch_idx, (inputs, targets) in enumerate(self.trainloader):
-            inputs, targets = inputs.to(self.device), targets.to(self.device)
-            self.optimizer.zero_grad()
-            outputs, _ = net(inputs)
-            loss = self.compute_loss(epoch, net, inputs, targets, outputs, conf)
-            loss.backward()
-            self.optimizer.step()
+        batch_idx = 0
+        for _ in range(conf['batch_size_multiplier']):
+            for inputs, targets in self.trainloader:
+                inputs, targets = inputs.to(self.device), targets.to(self.device)
+                self.optimizer.zero_grad()
+                outputs, _ = net(inputs)
+                loss = self.compute_loss(epoch, net, inputs, targets, outputs, conf)
+                loss.backward()
+                self.optimizer.step()
 
-            train_loss += loss.item()
-            _, predicted = outputs.max(1)
-            total += targets.size(0)
-            correct += predicted.eq(targets).sum().item()
-            acc = correct/total
-            if batch_idx % self.report_interval == 0:
-                print(batch_idx, '/', len(self.trainloader), ': Loss: %.3f | Acc: %.3f%% (%d/%d)'
-                    % (train_loss/(batch_idx+1), 100.*acc, correct, total))
-                # tried measuring all weights and quadratic weights here but mean and std
-                # weren't helpful. whatever changes they have they don't reflect on overall stats
-            if self.num_batches_per_epoch > 0 and batch_idx >= self.num_batches_per_epoch:
-                break # end it early so that we can test the code
+                train_loss += loss.item()
+                _, predicted = outputs.max(1)
+                total += targets.size(0)
+                correct += predicted.eq(targets).sum().item()
+                acc = correct/total
+                if batch_idx % conf['report_interval'] == 0:
+                    print(batch_idx, '/', len(self.trainloader)*conf['batch_size_multiplier'], 
+                        ': Loss: %.3f | Acc: %.3f%% (%d/%d)'
+                        % (train_loss/(batch_idx+1), 100.*acc, correct, total))
+                    print_control_params(net)
+                if self.num_batches_per_epoch > 0 and batch_idx >= self.num_batches_per_epoch:
+                    break # end it early so that we can test the code
+                batch_idx += 1
         return acc
 
     def test(self, net, epoch, conf):
@@ -262,33 +271,40 @@ class TrainingService_CIFAR10(TrainingService):
             % (test_loss/(batch_idx+1), 100.*acc, correct, total))
         return acc
 
-    def build_and_train(self, curvature_multiplier_inc=1e-4, **kwargs):
+    def build_and_train(self, **kwargs):
         config_defaults = {
             'use_mse': False, 'lr': 0.01, 'out_path': None, 'train_batch_size': 128, 
             'regularization': None, 'regularization_start_epoch': 10, 'l1': 0, 'l2': 0,
             'bias_l1': 0, 'bias_l2': 0, 'use_scrambling': False, 'use_overlay': False,
             'use_spherical': False, 'use_elliptical': False, 'use_quadratic': False, 
-            'use_homemade_initialization': False, 'log_strength_inc': 0.001
+            'use_homemade_initialization': False, 'log_strength_inc': 0.001,
+            'batch_size_multiplier': 1, 'report_interval': 150,
+            'curvature_multiplier_inc': 1e-4, 'curvature_multiplier_start': 0,
+            'curvature_multiplier_stop': 1, 'n_epochs': 40
         }
         unrecognized_params = [k for k in kwargs
                                if not (k in models.VGG.config_defaults or k in config_defaults)]
         assert not unrecognized_params, 'Unrecognized parameter: ' + str(unrecognized_params) 
 
+        conf = {**config_defaults, **kwargs}
+        print('Using training service config:', conf)
+        models.log_strength_inc = float(conf['log_strength_inc'])
+        models.curvature_multiplier_inc = conf['curvature_multiplier_inc']
+        models.curvature_multiplier_start = conf['curvature_multiplier_start']
+        models.curvature_multiplier_stop = conf['curvature_multiplier_stop']
+
         model_kwargs = {k:v for k, v in kwargs.items() if k in models.VGG.config_defaults}
         net = models.VGG(**model_kwargs)
         print(net)
 
-        conf = {**config_defaults, **kwargs}
-        print('Using training service config:', conf)
-        models.log_strength_inc = float(conf['log_strength_inc'])
-        self.trainloader = torch.utils.data.DataLoader(self.trainset, batch_size=conf['train_batch_size'], shuffle=True, num_workers=2)
+        self.trainloader = torch.utils.data.DataLoader(self.trainset, shuffle=True, num_workers=2, 
+                batch_size=conf['train_batch_size']*conf['batch_size_multiplier'])
         self.testloader = torch.utils.data.DataLoader(self.testset, batch_size=256, shuffle=False, num_workers=2)
         # tried ADAM already: it works for ReLU but fail to train ReLog (it doesn't just overfit,
         # it increases the loss after a few epochs)
-        models.curvature_multiplier_inc = curvature_multiplier_inc
         net = net.to(self.device)
-        for epoch in range(40):
-            self.optimizer = optim.SGD(net.parameters(), lr=conf['lr'])
+        for epoch in range(conf['n_epochs']):
+            self.optimizer = optim.SGD(net.parameters(), lr=conf['lr'], momentum=0.9)
             self.last_train_acc = self.train(net, epoch, conf) 
             self.last_test_acc = self.test(net, epoch, conf)
             out_path = kwargs.get('out_path')
