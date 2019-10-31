@@ -14,11 +14,25 @@ train() {
     name=$1
     second_param_onwards="${@:2}"
     echo "Training $name"
-    python -u train.py cifar-10 --vgg_name='VGG11' --use_batchnorm=True --modification_start_layer=0 $second_param_onwards &> output/debug/$name.log
+    python -u train.py cifar-10 --vgg_name='VGG11' --use_batchnorm=True --modification_start_layer=0 --out_path=output/debug/$name.pkl $second_param_onwards &> output/debug/$name.log
 }
 
 train debugging-relu --device=cuda:0 &
-train debugging-relu-elliptical --device=cuda:1 --use_elliptical --curvature_multiplier_start=0.05 --curvature_multiplier_stop=0.05 --n_epochs=80 &
+train debugging-relu-elliptical --device=cuda:1 --use_elliptical --curvature_multiplier_start=-0.5 --curvature_multiplier_stop=1 --n_epochs=80 &
 wait
+
+# execute_attack() {
+#     third_param_onwards="${@:3}"
+#     python -u adversarial.py --dataset=cifar10 --attack=$1 \
+#             --model_path=$2 --json_out_path=$out_path $third_param_onwards \
+#             --report_interval=5 --model_device=cpu # using CPUs to avoid OOM on a GPU
+# }
+
+# for model_path in output/debug/debugging-relu-elliptical.pkl output/debug/debugging-relu.pkl
+# do
+#     execute_attack BIM $model_path &
+#     execute_attack CW $model_path &
+#     wait
+# done
 
 echo -n "Finished: " && date

@@ -904,3 +904,40 @@ I didn't use gradual increase of quadratic units then...
 
 Finished "locality" section with interesting result: MSE+Overlay is necessary
 and sufficient to solve random noise. I didn't expect this at all.
+
+# Thu 31 Oct
+
+Trying to pinpoint why elliptical is hard to train: if I use just relu+elliptical
+with a small fixed curvature (0.05), the test acc in first error is already reduced
+compare to relu. So it's already hard independent of what constant you add
+when you ramp up the curve.
+
+One hypothesis is it can still train to the same acc, just takes longer...
+Trying out with `debug.job` (commit: 392442893669017c5b88ff128142eabd077e9550).
+
+    [minhle@int2 newlogic]$ sbatch scripts/debug.job
+    Submitted batch job 7052423
+
+Checked that if we reduce curvature to zero, the model trains as fast as ReLU.
+So it's not a problem with the implementation... It's just that the model is
+quite sensitive to quadratic terms.
+
+I have a theory of why: elliptical units mess up with the gradient.
+See [notebook](notebooks/elliptical_filters-initialization.ipynb):
+activation of the last layer looks normal but the gradient has 
+substantially higher mean and std.
+
+Job 7052423 finished, apparently, training for longer doesn't help. Probably 
+because the gradient is not of high enough quality. I wish I known how to 
+initialize the network such that the gradient well-behaves... Maybe if I train
+the network as a ReLU one for 10 epochs and then ramp up elliptical, it would
+reach higher score?
+--> so it worked for max curvature=0.05 (where it didn't work before). The model
+even get 86% test accuracy:
+
+    output/debug/debugging-relu-elliptical.log:Test eval: Loss: 0.474 | Acc: 86.400% (8640/10000)
+
+Would it work if I scale the curvature all the way up to 1?
+
+    [minhle@int2 newlogic]$ sbatch scripts/debug.job
+    Submitted batch job 7055564
