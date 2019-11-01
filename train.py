@@ -272,7 +272,7 @@ class TrainingService_CIFAR10(TrainingService):
             'bias_l1': 0, 'bias_l2': 0, 'use_scrambling': False, 'use_overlay': False,
             'use_elliptical': False, 'use_quadratic': False, 
             'use_homemade_initialization': False, 'log_strength_inc': 0.001,
-            'log_strength_start': 0, 'log_strength_stop': 1,
+            'log_strength_start': 0, 'log_strength_stop': 1, 'log_correction_multiplier': 1,
             'batch_size_multiplier': 1, 'report_interval': 150,
             'curvature_multiplier_inc': 1e-4, 'curvature_multiplier_start': 0,
             'curvature_multiplier_stop': 1, 'n_epochs': 40
@@ -286,6 +286,7 @@ class TrainingService_CIFAR10(TrainingService):
         models.log_strength_inc = float(conf['log_strength_inc'])
         models.log_strength_start = float(conf['log_strength_start'])
         models.log_strength_stop = float(conf['log_strength_stop'])
+        models.log_correction_multiplier = float(conf['log_correction_multiplier'])
         models.curvature_multiplier_inc = float(conf['curvature_multiplier_inc'])
         models.curvature_multiplier_start = float(conf['curvature_multiplier_start'])
         models.curvature_multiplier_stop = float(conf['curvature_multiplier_stop'])

@@ -1014,7 +1014,7 @@ Using my scaled-down version is more suitable and saves much time.
 
 With maxout, the model trains better:
 
-1. It crashes later, when log_strength approx. 0.7, compared to approx. 0.3 
+1. It collapses later, when log_strength approx. 0.7, compared to approx. 0.3 
 without maxout
 2. It continues to train after crashing
 3. It reaches around 50% test accuracy at the end of epoch 80
@@ -1025,3 +1025,16 @@ bias for elliptical is around 16 whereas the original bias is around 0.05.
 Secondly performance on adversary is the same with or without max-fit regularization 
 where as for MNIST, max-fit helps a lot. One solution is to highten the 
 strength of max-fit. I set it to 1 (as I did for MNIST) and restarted training.
+
+My guess seems correct. Adding a small amount proportional to the log strength
+delay accuracy collapsing (it was ok up to log_strength=0.9460!, how close!). 
+Besides, there's a pronounced difference between when we 
+use maxfit (which decreases bias) vs when we don't -- the point of collapse 
+was 0.75 vs 0.95. Based on these observations, there're two solutions: 
+
+- Increase the added bias, say 1.5*log_strength
+- Delay the onset of maxfit regularization, say epoch 52 when log_strength 
+has peaked at 1
+
+It's very important to avoid collapse because once a neuron is dead, it's very
+hard to revive it.

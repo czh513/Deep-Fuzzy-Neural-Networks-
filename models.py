@@ -35,6 +35,7 @@ class DynamicInitializer(object):
 log_strength_start = 1 # start right away
 log_strength_inc = 0.001
 log_strength_stop = 1
+log_correction_multiplier = 1
 
 class ReLog(nn.Module):
     r"""Applies the rectified log unit function element-wise:
@@ -61,7 +62,7 @@ class ReLog(nn.Module):
         effective_log_strength = max(0, self.log_strength)
         linear_term = F.relu(input)
         relog_func = lambda x: torch.log(F.relu(x) + 1/self.n) / math.log(self.n) + 1
-        log_term = relog_func(input + effective_log_strength)
+        log_term = relog_func(input + effective_log_strength * log_correction_multiplier)
         # interpolate ReLog-ReLU to stabalize training
         return log_term * effective_log_strength + linear_term * (1-effective_log_strength)
 

@@ -22,8 +22,8 @@ train() {
 # train debugging-relog-elliptical --device=cuda:1 --use_elliptical --curvature_multiplier_start=-0.5 --curvature_multiplier_stop=1 --use_relog=True --log_strength_start=-1 --log_strength_inc=0.0001 --n_epochs=80 &
 # wait
 
-train debugging-relog-elliptical-maxout --device=cuda:0 --use_elliptical --curvature_multiplier_start=-0.5 --curvature_multiplier_stop=1 --use_relog=True --log_strength_start=-1 --log_strength_inc=0.0001 --use_maxout=max --max_folding_factor=4 --n_epochs=80 &
-train debugging-relog-elliptical-maxout-maxfit_l1 --device=cuda:1 --use_elliptical --curvature_multiplier_start=-0.5 --curvature_multiplier_stop=1 --use_relog=True --log_strength_start=-1 --log_strength_inc=0.0001 --use_maxout=max --max_folding_factor=4 --regularization=max-fit --l1=1 --bias_l1=1 --regularization_start_epoch=15 --n_epochs=80 &
+train debugging-relog-elliptical-maxout --device=cuda:0 --use_elliptical --curvature_multiplier_start=-0.5 --curvature_multiplier_stop=1 --use_relog=True --log_strength_start=-1 --log_strength_inc=0.0001 --log_correction_multiplier=1.5 --use_maxout=max --max_folding_factor=4 --n_epochs=80 &
+train debugging-relog-elliptical-maxout-maxfit_l1 --device=cuda:1 --use_elliptical --curvature_multiplier_start=-0.5 --curvature_multiplier_stop=1 --use_relog=True --log_strength_start=-1 --log_strength_inc=0.0001 --log_correction_multiplier=1.5 --use_maxout=max --max_folding_factor=4 --regularization=max-fit --l1=1 --bias_l1=1 --regularization_start_epoch=52 --n_epochs=80 &
 wait
 
 execute_attack() {
@@ -34,6 +34,7 @@ execute_attack() {
 }
 
 # for model_path in output/debug/debugging-relu.pkl output/debug/debugging-relog-elliptical-maxout-maxfit_l1.pkl output/debug/debugging-relog-elliptical-maxout.pkl
+# for model_path in output/debug/debugging-relog-elliptical-maxout-maxfit_l1.pkl
 # do
 #     execute_attack BIM $model_path &
 #     execute_attack CW $model_path &
