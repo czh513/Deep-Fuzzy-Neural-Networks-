@@ -941,3 +941,87 @@ Would it work if I scale the curvature all the way up to 1?
 
     [minhle@int2 newlogic]$ sbatch scripts/debug.job
     Submitted batch job 7055564
+
+    (base) Minhs-MacBook-Pro:newlogic cumeo$ git log | head
+    commit 76a9d19baf785728e3e2c993ccb41320b882fd48
+    Author: Minh Le <minhle.r7@gmail.com>
+    Date:   Thu Oct 31 18:33:00 2019 +0100
+
+        trying full elliptical
+
+Found out a way to (sort-of) correct the increase in negativity caused by
+quadratic units. This is before correction:
+
+    Curvature multiplier: -0.0007, log strength nan
+    Test eval: Loss: 0.505 | Acc: 82.790% (8279/10000)
+    Curvature multiplier: 0.0084, log strength nan
+    Curvature multiplier: 0.0234, log strength nan
+    Curvature multiplier: 0.0384, log strength nan
+    Test eval: Loss: 0.528 | Acc: 81.950% (8195/10000)
+    Curvature multiplier: 0.0475, log strength nan
+    Curvature multiplier: 0.0625, log strength nan
+    Curvature multiplier: 0.0775, log strength nan
+    Test eval: Loss: 0.976 | Acc: 67.850% (6785/10000)
+    Curvature multiplier: 0.0866, log strength nan
+    Curvature multiplier: 0.1016, log strength nan
+    Curvature multiplier: 0.1166, log strength nan
+    Test eval: Loss: 0.916 | Acc: 70.930% (7093/10000)
+    Curvature multiplier: 0.1257, log strength nan
+    Curvature multiplier: 0.1407, log strength nan
+    Curvature multiplier: 0.1557, log strength nan
+    Test eval: Loss: 2.234 | Acc: 22.370% (2237/10000)
+    Curvature multiplier: 0.1648, log strength nan
+    Curvature multiplier: 0.1798, log strength nan
+    Curvature multiplier: 0.1948, log strength nan
+    Test eval: Loss: 2.041 | Acc: 28.420% (2842/10000)
+    Curvature multiplier: 0.2039, log strength nan
+    Curvature multiplier: 0.2189, log strength nan
+    Curvature multiplier: 0.2339, log strength nan
+    Test eval: Loss: 2.978 | Acc: 32.000% (3200/10000)
+    Curvature multiplier: 0.2430, log strength nan
+    Curvature multiplier: 0.2580, log strength nan
+
+As the strength of the quadratic term (called "Curvature multiplier")
+increases, accuracy takes a dive to 20%. This is after correction:
+
+    Curvature multiplier: -0.0007, log strength nan
+    Test eval: Loss: 0.505 | Acc: 83.570% (8357/10000)
+    Curvature multiplier: 0.0084, log strength nan
+    Curvature multiplier: 0.0234, log strength nan
+    Curvature multiplier: 0.0384, log strength nan
+    Test eval: Loss: 0.550 | Acc: 82.170% (8217/10000)
+    Curvature multiplier: 0.0475, log strength nan
+    Curvature multiplier: 0.0625, log strength nan
+    Curvature multiplier: 0.0775, log strength nan
+    Test eval: Loss: 0.646 | Acc: 78.820% (7882/10000)
+    Curvature multiplier: 0.0866, log strength nan
+    Curvature multiplier: 0.1016, log strength nan
+    Curvature multiplier: 0.1166, log strength nan
+    Test eval: Loss: 0.558 | Acc: 81.610% (8161/10000)
+    Curvature multiplier: 0.1257, log strength nan
+    Curvature multiplier: 0.1407, log strength nan
+    Curvature multiplier: 0.1557, log strength nan
+    Test eval: Loss: 0.546 | Acc: 82.350% (8235/10000)
+    Curvature multiplier: 0.1648, log strength nan
+    Curvature multiplier: 0.1798, log strength nan
+
+The magic is to add ("Curvature multiplier" * sqrt(fan-in)).
+
+# Fri 1 Nov
+
+VGG-16 was an overkill, it was designed to solve ImageNet, not CIFAR-10.
+Using my scaled-down version is more suitable and saves much time.
+
+With maxout, the model trains better:
+
+1. It crashes later, when log_strength approx. 0.7, compared to approx. 0.3 
+without maxout
+2. It continues to train after crashing
+3. It reaches around 50% test accuracy at the end of epoch 80
+
+However, I suspect that all those added bias to help stabilize a model has
+undo any benefit of the architecture... For one, the scale of the added
+bias for elliptical is around 16 whereas the original bias is around 0.05.
+Secondly performance on adversary is the same with or without max-fit regularization 
+where as for MNIST, max-fit helps a lot. One solution is to highten the 
+strength of max-fit. I set it to 1 (as I did for MNIST) and restarted training.

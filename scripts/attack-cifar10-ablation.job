@@ -16,12 +16,11 @@ execute_attack() {
             --report_interval=5 --model_device=cpu # using CPUs to avoid OOM on a GPU
 }
 
-# for model_path in $(ls $inp_dir/*.pkl)
-for model_path in output/ablation-cifar10-models2/relog-quadratic-max_fit_l2-maxout_4-mse.pkl
+for model_path in $(ls $inp_dir/*.pkl)
 do
     execute_attack BIM $model_path &
     execute_attack CW $model_path &
-    # execute_attack FGM_inf $model_path &
-    # execute_attack FGM_L2 $model_path &
+    execute_attack FGM_inf $model_path &
+    execute_attack FGM_L2 $model_path &
     wait
 done

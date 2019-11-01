@@ -62,19 +62,12 @@ class TrainingService(object):
             neg_output, _ = cnn(neg_x)
             loss += loss_func(neg_output, neg_y)
         if epoch >= conf['regularization_start_epoch']:
-            if conf['regularization'] in ('max-fit', 'max-margin') and not conf['use_spherical']:
+            if conf['regularization'] in ('max-fit', 'max-margin'):
                 assert (conf['l1'] > 0) or (conf['l2'] > 0), "Strength of regularization must be specified"
                 if conf['l1'] > 0:
                     loss += conf['l1'] * tmean(w.abs() for w in cnn.weights)
                 if conf['l2'] > 0:
                     loss += conf['l2'] * tmean(w*w for w in cnn.weights)
-            if conf['regularization'] == 'max-margin' and conf['use_spherical']:
-                assert (conf['bias_l1'] > 0) or (conf['bias_l2'] > 0), \
-                    "For max-margin with spherical, strength of bias regularization must be specified"
-                if conf['bias_l1'] > 0:
-                    loss += -conf['bias_l1'] * tmean(b for b in cnn.bias) # notice: no abs()
-                if conf['bias_l2'] > 0:
-                    loss += -conf['bias_l2'] * tmean(b*b.abs() for b in cnn.bias) # notice: signed
             if conf['regularization'] == 'max-fit':
                 assert (conf['bias_l1'] > 0) or (conf['bias_l2'] > 0), \
                     "For max-fit, strength of bias regularization must be specified"
@@ -124,16 +117,17 @@ class TrainingService_MNIST(TrainingService):
         )
 
     def build_and_train(self, n_epochs=20, **kwargs):
-        model_kwargs = {k:v for k, v in kwargs.items() if k in models.CNN.config_defaults}
-        cnn = models.CNN(**model_kwargs)
-        print(cnn)  # net architecture
-
         config_defaults = {
             'use_mse': False, 'lr': 0.001, 'out_path': None, 'train_batch_size': 64, 
             'regularization': None, 'regularization_start_epoch': 2, 'l1': 0, 'l2': 0, 
             'bias_l1': 0, 'bias_l2': 0, 'use_scrambling': False, 'use_overlay': False,
-            'use_spherical': False, 'use_elliptical': False, 'use_quadratic': False
+            'use_elliptical': False, 'use_quadratic': False
         }
+
+        model_kwargs = {k:v for k, v in kwargs.items() if k in models.CNN.config_defaults}
+        cnn = models.CNN(**model_kwargs)
+        print(cnn)  # net architecture
+
         train_params = {**config_defaults, **kwargs}
         self.train_loop(cnn, n_epochs, train_params)
         return cnn
@@ -276,8 +270,9 @@ class TrainingService_CIFAR10(TrainingService):
             'use_mse': False, 'lr': 0.01, 'out_path': None, 'train_batch_size': 128, 
             'regularization': None, 'regularization_start_epoch': 10, 'l1': 0, 'l2': 0,
             'bias_l1': 0, 'bias_l2': 0, 'use_scrambling': False, 'use_overlay': False,
-            'use_spherical': False, 'use_elliptical': False, 'use_quadratic': False, 
+            'use_elliptical': False, 'use_quadratic': False, 
             'use_homemade_initialization': False, 'log_strength_inc': 0.001,
+            'log_strength_start': 0, 'log_strength_stop': 1,
             'batch_size_multiplier': 1, 'report_interval': 150,
             'curvature_multiplier_inc': 1e-4, 'curvature_multiplier_start': 0,
             'curvature_multiplier_stop': 1, 'n_epochs': 40
@@ -289,9 +284,11 @@ class TrainingService_CIFAR10(TrainingService):
         conf = {**config_defaults, **kwargs}
         print('Using training service config:', conf)
         models.log_strength_inc = float(conf['log_strength_inc'])
-        models.curvature_multiplier_inc = conf['curvature_multiplier_inc']
-        models.curvature_multiplier_start = conf['curvature_multiplier_start']
-        models.curvature_multiplier_stop = conf['curvature_multiplier_stop']
+        models.log_strength_start = float(conf['log_strength_start'])
+        models.log_strength_stop = float(conf['log_strength_stop'])
+        models.curvature_multiplier_inc = float(conf['curvature_multiplier_inc'])
+        models.curvature_multiplier_start = float(conf['curvature_multiplier_start'])
+        models.curvature_multiplier_stop = float(conf['curvature_multiplier_stop'])
 
         model_kwargs = {k:v for k, v in kwargs.items() if k in models.VGG.config_defaults}
         net = models.VGG(**model_kwargs)

@@ -30,8 +30,11 @@ class DynamicInitializer(object):
             bounds.append(bound)
             self.run_already = True
 
-log_strength_start = 0
+# if you want a gradual ramping up, change this
+# put it to negative if you want to start after some epochs
+log_strength_start = 1 # start right away
 log_strength_inc = 0.001
+log_strength_stop = 1
 
 class ReLog(nn.Module):
     r"""Applies the rectified log unit function element-wise:
@@ -54,20 +57,20 @@ class ReLog(nn.Module):
 
     def forward(self, input):
         if self.training:
-            self.log_strength = min(1, self.log_strength + log_strength_inc)
+            self.log_strength = min(log_strength_stop, self.log_strength + log_strength_inc)
         effective_log_strength = max(0, self.log_strength)
         linear_term = F.relu(input)
-        log_term = torch.log(linear_term + 1/self.n) / math.log(self.n) + 1
-        if effective_log_strength < 1:
-            # interpolate ReLog-ReLU just in case training is unstable
-            return log_term * effective_log_strength + linear_term * (1-effective_log_strength)
-        else:
-            return log_term
+        relog_func = lambda x: torch.log(F.relu(x) + 1/self.n) / math.log(self.n) + 1
+        log_term = relog_func(input + effective_log_strength)
+        # interpolate ReLog-ReLU to stabalize training
+        return log_term * effective_log_strength + linear_term * (1-effective_log_strength)
 
     def extra_repr(self):
         return 'n=%.2f' % (self.n)
 
-curvature_multiplier_start = 0
+# if you want a gradual ramping up, change this
+# put it to negative if you want to start after some epochs
+curvature_multiplier_start = 1 
 curvature_multiplier_inc = 0.001
 curvature_multiplier_stop = 1
 
@@ -88,18 +91,6 @@ class AbsConv2d(nn.Conv2d):
     def forward(self, input):
         return self.conv2d_forward(input, self.weight.abs())
 
-class Spherical(nn.Linear):
-
-    def __init__(self, *args, **kwargs):
-        super(Spherical, self).__init__(*args, **kwargs)
-        self.multiplier = curvature_multiplier_start
-
-    def forward(self, input):
-        output = super(Spherical, self).forward(input)
-        a = 0.5 * update_curvature_multiplier(self)
-        output += -a * (input*input).mean(axis=1, keepdim=True)
-        return output
-
 class Elliptical(nn.Linear):
 
     def __init__(self, *args, **kwargs):
@@ -112,34 +103,14 @@ class Elliptical(nn.Linear):
         linear_term = super(Elliptical, self).forward(input)
         quadratic_term = self._quadratic.forward(input*input)
         a = update_curvature_multiplier(self)
-        return -a * quadratic_term + linear_term
+        fan_in = self.weight.shape[1]
+        return -a * quadratic_term + a * math.sqrt(fan_in) + linear_term
 
 class Quadratic(Elliptical):
 
     def __init__(self, *args, **kwargs):
         super(Quadratic, self).__init__(*args, **kwargs)
         self._quadratic = nn.Linear(*args, **kwargs)
-
-class SphericalCNN(nn.Conv2d):
-
-    def __init__(self, in_channels, out_channels, kernel_size, **kwargs):
-        super(SphericalCNN, self).__init__(in_channels, out_channels, kernel_size, **kwargs)
-        kwargs['bias'] = False
-        self.multiplier = curvature_multiplier_start
-        self._cnn_mean = nn.Conv2d(in_channels, out_channels, kernel_size, **kwargs)
-        if isinstance(kernel_size, (tuple,list)):
-            w, h = kernel_size
-            n_elems = w * h
-        else:
-            n_elems = kernel_size * kernel_size
-        self._cnn_mean.weight.requires_grad = False
-        self._cnn_mean.weight.fill_(1/float(n_elems))
-
-    def forward(self, input):
-        output = super(SphericalCNN, self).forward(input)
-        a = 0.5 * update_curvature_multiplier(self)
-        output += -a * self._cnn_mean.forward(input*input)
-        return output
 
 class EllipticalCNN(nn.Conv2d):
 
@@ -153,9 +124,10 @@ class EllipticalCNN(nn.Conv2d):
         linear_term = super(EllipticalCNN, self).forward(input)
         quadratic_term = self._quadratic.forward(input*input)
         a = update_curvature_multiplier(self)
-        return -a * quadratic_term + linear_term
+        fan_in = self.weight.shape[1]
+        return -a * quadratic_term + a * math.sqrt(fan_in) + linear_term
 
-class QuadraticCNN(nn.Conv2d):
+class QuadraticCNN(EllipticalCNN):
 
     def __init__(self, in_channels, out_channels, kernel_size, **kwargs):
         super(QuadraticCNN, self).__init__(in_channels, out_channels, kernel_size, **kwargs)
@@ -192,9 +164,8 @@ class ExperimentalModel(nn.Module):
         assert all(k in self.config_defaults for k in kwargs)
         self.conf = {**self.config_defaults, **kwargs}
         print('Using model config:', self.conf)
-        assert sum([self.conf['use_spherical'], self.conf['use_elliptical'], 
-                    self.conf['use_quadratic']]) in (0, 1), \
-                "Can only use one in spherical, elliptical, and quadratic"
+        assert sum([self.conf['use_elliptical'], self.conf['use_quadratic']]) in (0, 1), \
+                "Can only use one in elliptical and quadratic"
         if 'max' not in self.conf['use_maxout']:
             self.conf['max_folding_factor'] = 1
         if 'min' not in self.conf['use_maxout']:
@@ -218,9 +189,7 @@ class ExperimentalModel(nn.Module):
         return weights
                 
     def dense(self, *args, **kwargs):
-        if self.conf['use_spherical']:
-            f = Spherical
-        elif self.conf['use_elliptical']:
+        if self.conf['use_elliptical']:
             f = Elliptical
         elif self.conf['use_quadratic']:
             f = Quadratic
@@ -232,9 +201,7 @@ class ExperimentalModel(nn.Module):
         return module
 
     def conv(self, *args, **kwargs):
-        if self.conf['use_spherical']:
-            f = SphericalCNN
-        elif self.conf['use_elliptical']:
+        if self.conf['use_elliptical']:
             f = EllipticalCNN
         elif self.conf['use_quadratic']:
             f = QuadraticCNN
@@ -278,7 +245,7 @@ class CNN(ExperimentalModel):
     config_defaults = {
         'use_relog': False, 'use_maxout': '', 'max_folding_factor': 4, 'min_folding_factor': 2,
         'conv1_out_channels': 16, 'conv2_out_channels': 32,
-        'use_spherical': False, 'use_elliptical': False, 'use_quadratic': False, 'use_batchnorm': False,
+        'use_elliptical': False, 'use_quadratic': False, 'use_batchnorm': False,
         'use_homemade_initialization': False
     }
 
@@ -314,10 +281,8 @@ cfg = {
     'VGG3':  [64, 'M', 128, 'M', 256, 'M', 'M', 'M'], # a scale-downed version to test my code
     'VGG4':  [64, 'M', 128, 'M', 256, 256, 'M', 'M', 'M'], # a scale-downed version to test my code
     'VGG11': [64, 'M', 128, 'M', 256, 256, 'M', 512, 512, 'M', 512, 512, 'M'], # a scale-downed version to test my code
-    'VGG11*': [1024, 'M', 512, 'M', 512, 512, 'M', 256, 256, 'M', 128, 128, 'M'], # a scale-downed version to test my code
     'VGG13': [64, 64, 'M', 128, 128, 'M', 256, 256, 'M', 512, 512, 'M', 512, 512, 'M'],
     'VGG16': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 'M', 512, 512, 512, 'M', 512, 512, 512, 'M'],
-    'VGG16*': [512, 512, 'M', 128, 128, 'M', 256, 256, 256, 'M', 512, 512, 512, 'M', 512, 512, 512, 'M'],
     'VGG19': [64, 64, 'M', 128, 128, 'M', 256, 256, 256, 256, 'M', 512, 512, 512, 512, 'M', 512, 512, 512, 512, 'M'],
 }
 
@@ -325,7 +290,7 @@ class VGG(ExperimentalModel):
 
     config_defaults = {
         'use_relog': False, 'modification_start_layer': 0, 'use_maxout': '', 'max_folding_factor': 4, 'min_folding_factor': 2,
-        'use_spherical': False, 'use_elliptical': False, 'use_quadratic': False, 'use_batchnorm': False,
+        'use_elliptical': False, 'use_quadratic': False, 'use_batchnorm': False,
         'use_homemade_initialization': False, 'vgg_name': 'VGG16', 'capacity_factor': 1
     }
 
