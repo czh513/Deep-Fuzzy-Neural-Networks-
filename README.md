@@ -6,3 +6,5 @@ Steps:
 3. fgsm.ipynb
 3. cw.ipynb
 
+
+Reproducing MNIST experiments:

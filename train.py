@@ -18,27 +18,25 @@ def gaussian_noise(epsilon):
     transform_func = lambda x : (x + torch.randn_like(x)*epsilon)
     return torchvision.transforms.Lambda(transform_func)
 
-def tmean(vals):
-    ''' Compute micro-average of a list of Torch Tensors '''
-    vals = [val.view(-1) for val in vals]
-    return torch.cat(vals).mean()
-
-def tstd(vals):
-    ''' Compute micro-average of a list of Torch Tensors '''
-    vals = [val.view(-1) for val in vals]
-    return torch.cat(vals).std()
+def param_mean(vals):
+    ''' This method takes one mean per layer (assuming each tensor comes from one layer) and then sum them together. 
+    The rationale is that the scale of regularization signal shouldn't be dependent on the depth of the network. '''
+    vals = [val.mean() for val in vals]
+    return sum(vals)
 
 class WeightedMSELoss(object):
 
-    def __init__(self, possitive_weight_factor):
-        self.possitive_weight_factor = possitive_weight_factor
+    def __init__(self, possitive_weight, negative_weight):
+        self.possitive_weight = possitive_weight
+        self.negative_weight = negative_weight
 
-    def __call__(self, predicted, labels):
-        raw_loss = mse_loss(predicted, labels, reduction='none')
+    def __call__(self, preds, labels):
+        raw_loss = (preds-labels.float())**2
+        n = 1 / (self.possitive_weight + self.negative_weight)
+        p = self.possitive_weight * n
         unit_weights = torch.ones_like(raw_loss)
-        possitive_weights = unit_weights * self.possitive_weight_factor
-        weighted_loss = raw_loss * torch.where(labels == 1, possitive_weights, unit_weights)
-        return weighted_loss.mean()
+        weighted_loss = raw_loss * torch.where(labels == 1, unit_weights*p, unit_weights*n)
+        return weighted_loss.sum(dim=1).mean()
 
 class TrainingService(object):
 
@@ -47,10 +45,12 @@ class TrainingService(object):
         if conf['use_mse']:
             train_y = one_hot(train_y, num_classes=self.num_classes).float()
             output = output.sigmoid()
-            if conf['use_scrambling'] or conf['use_overlay']:
-                loss_func = WeightedMSELoss(19) # hard code for now...
-            else:
-                loss_func = WeightedMSELoss(9) # hard code for now...
+            print(train_y[0], output[0])
+            # Tried to weight the positive classes higher than negative classes,
+            # turned out it's a terrible idea. The network starts with maximum
+            # activation everywhere and the negative classes is weighted too
+            # low to push it down
+            loss_func = nn.MSELoss()
         else:
             loss_func = nn.CrossEntropyLoss()
         main_loss = loss_func(output, train_y)
@@ -69,16 +69,16 @@ class TrainingService(object):
             if conf['regularization'] in ('max-fit', 'max-margin'):
                 assert (conf['l1'] > 0) or (conf['l2'] > 0), "Strength of regularization must be specified"
                 if conf['l1'] > 0:
-                    reg_loss += conf['l1'] * tmean(w.abs() for w in cnn.weights)
+                    reg_loss += conf['l1'] * param_mean(w.abs() for w in cnn.weights)
                 if conf['l2'] > 0:
-                    reg_loss += conf['l2'] * tmean(w*w for w in cnn.weights)
+                    reg_loss += conf['l2'] * param_mean(w*w for w in cnn.weights)
             if conf['regularization'] == 'max-fit':
                 assert (conf['bias_l1'] > 0) or (conf['bias_l2'] > 0), \
                     "For max-fit, strength of bias regularization must be specified"
                 if conf['bias_l1'] > 0:
-                    reg_loss += conf['bias_l1'] * tmean(b for b in cnn.bias) # notice: no abs()
+                    reg_loss += conf['bias_l1'] * param_mean(b for b in cnn.bias) # notice: no abs()
                 if conf['bias_l2'] > 0:
-                    reg_loss += conf['bias_l2'] * tmean(b*b.abs() for b in cnn.bias) # notice: signed
+                    reg_loss += conf['bias_l2'] * param_mean(b*b.abs() for b in cnn.bias) # notice: signed
 
         loss = main_loss + reg_loss + neg_training_loss
         return loss, main_loss, reg_loss, neg_training_loss
@@ -229,11 +229,11 @@ class TrainingService_CIFAR10(TrainingService):
                 inputs, targets = inputs.to(self.device), targets.to(self.device)
                 self.optimizer.zero_grad()
                 outputs, _ = net(inputs)
-                loss, _, reg_loss, _ = self.compute_loss(epoch, net, inputs, targets, outputs, conf)
+                loss, main_loss, reg_loss, _ = self.compute_loss(epoch, net, inputs, targets, outputs, conf)
                 loss.backward()
                 self.optimizer.step()
 
-                train_loss += loss.item()
+                train_loss += main_loss.item()
                 _, predicted = outputs.max(1)
                 total += targets.size(0)
                 correct += predicted.eq(targets).sum().item()
@@ -284,7 +284,7 @@ class TrainingService_CIFAR10(TrainingService):
             'regularization': None, 'regularization_start_epoch': 10, 'l1': 0, 'l2': 0,
             'bias_l1': 0, 'bias_l2': 0, 'use_scrambling': False, 'use_overlay': False,
             'use_elliptical': False, 'use_quadratic': False, 'log_strength_inc': 0.001,
-            'log_strength_start': 0, 'log_strength_stop': 1,
+            'log_strength_start': 0.001, 'log_strength_stop': 1,
             'batch_size_multiplier': 1, 'report_interval': 150,
             'curvature_multiplier_inc': 1e-4, 'curvature_multiplier_start': 0,
             'curvature_multiplier_stop': 1, 'n_epochs': 40

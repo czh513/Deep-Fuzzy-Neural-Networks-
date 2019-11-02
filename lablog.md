@@ -1102,9 +1102,32 @@ it up from the start and the network accuracy can still improves:
 
     [minhle@int2 newlogic]$ grep Test output/debug/debugging-relog-elliptical-maxout*-fast_training.log
     output/debug/debugging-relog-elliptical-maxout-fast_training.log:Test eval: Loss: 2.280 | Acc: 24.800% (2480/10000)
+    output/debug/debugging-relog-elliptical-maxout-fast_training.log:Test eval: Loss: 2.268 | Acc: 27.870% (2787/10000)
+    output/debug/debugging-relog-elliptical-maxout-fast_training.log:Test eval: Loss: 3.944 | Acc: 10.020% (1002/10000)
+    output/debug/debugging-relog-elliptical-maxout-fast_training.log:Test eval: Loss: 3.566 | Acc: 22.290% (2229/10000)
+    output/debug/debugging-relog-elliptical-maxout-fast_training.log:Test eval: Loss: 1.915 | Acc: 35.350% (3535/10000)
+    output/debug/debugging-relog-elliptical-maxout-fast_training.log:Test eval: Loss: 1.859 | Acc: 34.720% (3472/10000)
     output/debug/debugging-relog-elliptical-maxout-maxfit_l1-fast_training.log:Test eval: Loss: 2.090 | Acc: 24.650% (2465/10000)
+    output/debug/debugging-relog-elliptical-maxout-maxfit_l1-fast_training.log:Test eval: Loss: 2.405 | Acc: 21.830% (2183/10000)
+    output/debug/debugging-relog-elliptical-maxout-maxfit_l1-fast_training.log:Test eval: Loss: 2.697 | Acc: 14.630% (1463/10000)
+    output/debug/debugging-relog-elliptical-maxout-maxfit_l1-fast_training.log:Test eval: Loss: 6.042 | Acc: 17.290% (1729/10000)
+    output/debug/debugging-relog-elliptical-maxout-maxfit_l1-fast_training.log:Test eval: Loss: 1.825 | Acc: 34.670% (3467/10000)
+    output/debug/debugging-relog-elliptical-maxout-maxfit_l1-fast_training.log:Test eval: Loss: 1.557 | Acc: 44.610% (4461/10000)
 
 And it's much more beautiful... But now I need to rerun all MNIST experiments :-(
+Jos submitted:
 
+    $ drake output/ablation-mnist-models
+    --- 4. Running (missing output): /nfs/home2/minhle/newlogic/././output/ablation-mnist-models <- /nfs/home2/minhle/newlogic/././train.py
+    Submitted batch job 7064767
+    Submitted batch job 7064768
+    Jobs submitted, please wait for a few hours
+    $ squeue | grep minh
+            7064740 gpu_short     bash   minhle  R      34:04      1 gcn27
+            7064767       gpu train-mn   minhle  R       0:29      1 gcn36
+            7064768       gpu train-mn   minhle  R       0:29      1 gcn66
 
-    
+Weighting the positive classes higher than negative classes
+turns out to be a terrible idea. The network starts with maximum
+activation everywhere and the negative classes is weighted too
+low to push it down

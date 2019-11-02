@@ -18,9 +18,9 @@ train() {
 }
 
 # trying faster training
-train debugging-relog-elliptical-maxout-fast_training --device=cuda:0 --use_elliptical --curvature_multiplier_start=-1 --curvature_multiplier_stop=1 --curvature_multiplier_inc=0.001 --use_relog=True --log_strength_start=0 --log_strength_inc=0.001 --use_maxout=max --max_folding_factor=4 --n_epochs=40 &
-train debugging-relog-elliptical-maxout-maxfit_l1-fast_training --device=cuda:1 --use_elliptical --curvature_multiplier_start=-1 --curvature_multiplier_stop=1 --curvature_multiplier_inc=0.001 --use_relog=True --log_strength_start=0 --log_strength_inc=0.001 --use_maxout=max --max_folding_factor=4 --regularization=max-fit --l1=1 --bias_l1=1 --regularization_start_epoch=5 --n_epochs=40 &
-wait
+# train debugging-relog-elliptical-maxout-fast_training --device=cuda:0 --use_elliptical --curvature_multiplier_start=-1 --curvature_multiplier_stop=1 --curvature_multiplier_inc=0.001 --use_relog=True --log_strength_start=0 --log_strength_inc=0.001 --use_maxout=max --max_folding_factor=4 --n_epochs=40 &
+# train debugging-relog-elliptical-maxout-maxfit_l1-fast_training --device=cuda:1 --use_elliptical --curvature_multiplier_start=-1 --curvature_multiplier_stop=1 --curvature_multiplier_inc=0.001 --use_relog=True --log_strength_start=0 --log_strength_inc=0.001 --use_maxout=max --max_folding_factor=4 --regularization=max-fit --l1=1 --bias_l1=1 --regularization_start_epoch=5 --n_epochs=40 &
+# wait
 
 # successful training sessions:
 # train debugging-relu --device=cuda:0 &
