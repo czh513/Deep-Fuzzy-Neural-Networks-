@@ -1093,3 +1093,18 @@ Implemented various changes:
 - proper Gaussian noise for CIFAR-10
 - regularization monitoring
 
+Despite my corrections, accuracy still crashes around log_strength=0.95.
+Perhaps it's not about the ramping up of ReLog but the function itself
+is flawed. The gradient around zero is big (say, 10 if n=10) so it can 
+explode easily when the network is deep. I tried the function 
+$log(x*k + 1)/k$, it behaves much more stable, for example, we can ramp 
+it up from the start and the network accuracy can still improves:
+
+    [minhle@int2 newlogic]$ grep Test output/debug/debugging-relog-elliptical-maxout*-fast_training.log
+    output/debug/debugging-relog-elliptical-maxout-fast_training.log:Test eval: Loss: 2.280 | Acc: 24.800% (2480/10000)
+    output/debug/debugging-relog-elliptical-maxout-maxfit_l1-fast_training.log:Test eval: Loss: 2.090 | Acc: 24.650% (2465/10000)
+
+And it's much more beautiful... But now I need to rerun all MNIST experiments :-(
+
+
+    

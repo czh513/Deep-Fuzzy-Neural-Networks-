@@ -13,12 +13,10 @@ class Lambda(nn.Module):
     def forward(self, x):
         return self.func(x)
 
-# if you want a gradual ramping up, change this
 # put it to negative if you want to start after some epochs
-log_strength_start = 1 # start right away
+log_strength_start = 0.001
 log_strength_inc = 0.001
 log_strength_stop = 1
-log_correction_multiplier = 1
 
 class ReLog(nn.Module):
     r"""Applies the rectified log unit function element-wise:
@@ -42,12 +40,9 @@ class ReLog(nn.Module):
     def forward(self, input):
         if self.training:
             self.log_strength = min(log_strength_stop, self.log_strength + log_strength_inc)
-        k = max(0, self.log_strength) # effective log strength
-        linear_term = F.relu(input)
-        relog_func = lambda x: torch.log(F.relu(x) + 1/self.n) / math.log(self.n) + 1
-        log_term = relog_func(input)
-        # interpolate ReLog-ReLU to stabalize training
-        return (log_term * k + linear_term * (1-k))*(1+2*k*k)
+        beta = max(0, self.log_strength) # effective log strength
+        relog_func = lambda x: torch.log(F.relu(x)*beta + 1) / beta
+        return relog_func(input)
 
     def extra_repr(self):
         return 'n=%.2f' % (self.n)

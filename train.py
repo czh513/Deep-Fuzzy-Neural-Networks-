@@ -55,7 +55,7 @@ class TrainingService(object):
             loss_func = nn.CrossEntropyLoss()
         main_loss = loss_func(output, train_y)
 
-        neg_training_loss = torch.tensor(0.0)
+        neg_training_loss = torch.tensor(0.0).to(self.device)
         if (conf['use_scrambling'] or conf['use_overlay']) and epoch >= 1:
             assert conf['use_mse'], "Softmax networks can't handle all-negative input"
             f = self.scramble if conf['use_scrambling'] else OverlayNegativeSamples()
@@ -64,7 +64,7 @@ class TrainingService(object):
             neg_output, _ = cnn(neg_x)
             neg_training_loss += loss_func(neg_output, neg_y)
 
-        reg_loss = torch.tensor(0.0)
+        reg_loss = torch.tensor(0.0).to(self.device)
         if epoch >= conf['regularization_start_epoch']:
             if conf['regularization'] in ('max-fit', 'max-margin'):
                 assert (conf['l1'] > 0) or (conf['l2'] > 0), "Strength of regularization must be specified"
@@ -283,9 +283,8 @@ class TrainingService_CIFAR10(TrainingService):
             'use_mse': False, 'lr': 0.01, 'out_path': None, 'train_batch_size': 128, 
             'regularization': None, 'regularization_start_epoch': 10, 'l1': 0, 'l2': 0,
             'bias_l1': 0, 'bias_l2': 0, 'use_scrambling': False, 'use_overlay': False,
-            'use_elliptical': False, 'use_quadratic': False, 
-            'log_strength_inc': 0.001,
-            'log_strength_start': 0, 'log_strength_stop': 1, 'log_correction_multiplier': 1,
+            'use_elliptical': False, 'use_quadratic': False, 'log_strength_inc': 0.001,
+            'log_strength_start': 0, 'log_strength_stop': 1,
             'batch_size_multiplier': 1, 'report_interval': 150,
             'curvature_multiplier_inc': 1e-4, 'curvature_multiplier_start': 0,
             'curvature_multiplier_stop': 1, 'n_epochs': 40
@@ -299,7 +298,6 @@ class TrainingService_CIFAR10(TrainingService):
         models.log_strength_inc = float(conf['log_strength_inc'])
         models.log_strength_start = float(conf['log_strength_start'])
         models.log_strength_stop = float(conf['log_strength_stop'])
-        models.log_correction_multiplier = float(conf['log_correction_multiplier'])
         models.curvature_multiplier_inc = float(conf['curvature_multiplier_inc'])
         models.curvature_multiplier_start = float(conf['curvature_multiplier_start'])
         models.curvature_multiplier_stop = float(conf['curvature_multiplier_stop'])
