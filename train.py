@@ -32,11 +32,11 @@ class WeightedMSELoss(object):
 
     def __call__(self, preds, labels):
         raw_loss = (preds-labels.float())**2
-        n = 1 / (self.possitive_weight + self.negative_weight)
-        p = self.possitive_weight * n
         unit_weights = torch.ones_like(raw_loss)
-        weighted_loss = raw_loss * torch.where(labels == 1, unit_weights*p, unit_weights*n)
-        return weighted_loss.sum(dim=1).mean()
+        weighted_loss = raw_loss * torch.where(labels == 1, 
+                unit_weights*self.possitive_weight, 
+                unit_weights*self.negative_weight)
+        return weighted_loss.mean()
 
 class TrainingService(object):
 
@@ -45,12 +45,10 @@ class TrainingService(object):
         if conf['use_mse']:
             train_y = one_hot(train_y, num_classes=self.num_classes).float()
             output = output.sigmoid()
-            print(train_y[0], output[0])
-            # Tried to weight the positive classes higher than negative classes,
-            # turned out it's a terrible idea. The network starts with maximum
-            # activation everywhere and the negative classes is weighted too
-            # low to push it down
-            loss_func = nn.MSELoss()
+            if conf['use_scrambling'] or conf['use_overlay']:
+                loss_func = WeightedMSELoss(19, 1) # hard code for now...
+            else:
+                loss_func = WeightedMSELoss(9, 1) # hard code for now...
         else:
             loss_func = nn.CrossEntropyLoss()
         main_loss = loss_func(output, train_y)

@@ -49,7 +49,7 @@ class ReLog(nn.Module):
 
 # if you want a gradual ramping up, change this
 # put it to negative if you want to start after some epochs
-curvature_multiplier_start = 1 
+curvature_multiplier_start = 0
 curvature_multiplier_inc = 0.001
 curvature_multiplier_stop = 1
 
