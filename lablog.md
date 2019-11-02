@@ -1037,4 +1037,59 @@ was 0.75 vs 0.95. Based on these observations, there're two solutions:
 has peaked at 1
 
 It's very important to avoid collapse because once a neuron is dead, it's very
-hard to revive it.
+hard to revive it. Submitted another job:
+
+    (base) Minhs-MacBook-Pro:newlogic cumeo$ git log | head
+    commit 681a4f6a2f92d8233d19cadf7df1d8f9056c2be5
+    Author: Minh Le <minhle.r7@gmail.com>
+    Date:   Fri Nov 1 19:21:00 2019 +0100
+
+        another attempt at training deep logic net
+    [minhle@int1 newlogic]$ sbatch scripts/debug.job
+    Submitted batch job 7062082
+
+An important observation: we didn't use a random noise during data
+augmentation for CIFAR-10, this might limit the ability of the algorithm to 
+defense against attack... However, I remember that adding N(0, 0.3) prevents
+models from learning... Maybe weaker noise would work??
+
+Reading Bengio & Delalleau (2011) again to understand the theoretical motivation.
+I liked logic mostly because of its interpretability but there might be other
+benefits...
+
+1. (Soft) symbolic representations do divide hyperspace:
+a rule such as y = x_3 AND x_5 divide the space into 2 regions and
+2. (Soft) symbolic representations are sparse: the rule above is only active
+for 2 dimensions while ignoring all others
+3. Distributed representations are not the same as dividing hyperspace
+into an exponential numbers of regions. They are just one special case 
+with symbolic representations being another.
+4. The architectures proposed here have the potential to encode localist/
+symbolic knowledge in connectionist framework but I don't want to go there,
+at least not in the introduction. It's a huge debate with lots of complicated
+arguments that I don't have enough time to research over.
+5. It's easier to put forward an argument based on local vs distributed
+_partitioning_ of hyperspace.
+6. The link between locality and adversarial examples is one through 
+_certainty modeling_. Distributed partitioning leads to over-confidence
+far from the region where one can make founded inference whereas local
+partitioning can be engineered to be more conservative. --> this is quite
+shaky, the more I think about it the more it becomes fuzzy
+7. keyword: connected region, papers are out there about the link
+between connectedness and adversarial, logic is naturally disconnected
+
+Reference:
+
+Bengio, Y., & Delalleau, O. (2011). On the expressive power of deep architectures. In Algorithmic Learning Theory (pp. 18–36).
+
+# Sat 2 Nov
+
+Deleted "homemade initialization" (dynamic initialization) because it's not
+necessary. Just train a ReLU net as initialization.
+
+Implemented various changes: 
+
+- better correction for ReLog interpolation
+- proper Gaussian noise for CIFAR-10
+- regularization monitoring
+

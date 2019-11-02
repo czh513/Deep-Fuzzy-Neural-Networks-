@@ -15,7 +15,7 @@ import numpy as np
 from negaugment import *
 
 def gaussian_noise(epsilon):
-    transform_func = lambda x : (x + torch.randn_like(x)*epsilon).clamp(min=0, max=1)
+    transform_func = lambda x : (x + torch.randn_like(x)*epsilon)
     return torchvision.transforms.Lambda(transform_func)
 
 def tmean(vals):
@@ -53,29 +53,35 @@ class TrainingService(object):
                 loss_func = WeightedMSELoss(9) # hard code for now...
         else:
             loss_func = nn.CrossEntropyLoss()
-        loss = loss_func(output, train_y)
+        main_loss = loss_func(output, train_y)
+
+        neg_training_loss = torch.tensor(0.0)
         if (conf['use_scrambling'] or conf['use_overlay']) and epoch >= 1:
             assert conf['use_mse'], "Softmax networks can't handle all-negative input"
             f = self.scramble if conf['use_scrambling'] else OverlayNegativeSamples()
             neg_x = f(train_x, orig_train_y).to(self.device)
             neg_y = torch.zeros(neg_x.shape[0], self.num_classes).to(self.device)
             neg_output, _ = cnn(neg_x)
-            loss += loss_func(neg_output, neg_y)
+            neg_training_loss += loss_func(neg_output, neg_y)
+
+        reg_loss = torch.tensor(0.0)
         if epoch >= conf['regularization_start_epoch']:
             if conf['regularization'] in ('max-fit', 'max-margin'):
                 assert (conf['l1'] > 0) or (conf['l2'] > 0), "Strength of regularization must be specified"
                 if conf['l1'] > 0:
-                    loss += conf['l1'] * tmean(w.abs() for w in cnn.weights)
+                    reg_loss += conf['l1'] * tmean(w.abs() for w in cnn.weights)
                 if conf['l2'] > 0:
-                    loss += conf['l2'] * tmean(w*w for w in cnn.weights)
+                    reg_loss += conf['l2'] * tmean(w*w for w in cnn.weights)
             if conf['regularization'] == 'max-fit':
                 assert (conf['bias_l1'] > 0) or (conf['bias_l2'] > 0), \
                     "For max-fit, strength of bias regularization must be specified"
                 if conf['bias_l1'] > 0:
-                    loss += conf['bias_l1'] * tmean(b for b in cnn.bias) # notice: no abs()
+                    reg_loss += conf['bias_l1'] * tmean(b for b in cnn.bias) # notice: no abs()
                 if conf['bias_l2'] > 0:
-                    loss += conf['bias_l2'] * tmean(b*b.abs() for b in cnn.bias) # notice: signed
-        return loss
+                    reg_loss += conf['bias_l2'] * tmean(b*b.abs() for b in cnn.bias) # notice: signed
+
+        loss = main_loss + reg_loss + neg_training_loss
+        return loss, main_loss, reg_loss, neg_training_loss
 
 def print_control_params(net):
     # tried measuring all weights and quadratic weights here but mean and std
@@ -148,7 +154,7 @@ class TrainingService_MNIST(TrainingService):
                 output, _ = cnn(train_x)
 
                 optimizer.zero_grad()           # clear gradients for this training step
-                loss = self.compute_loss(epoch, cnn, train_x, train_y, output, conf)
+                loss, _, _, _ = self.compute_loss(epoch, cnn, train_x, train_y, output, conf)
                 loss.backward()                 # backpropagation, compute gradients
                 optimizer.step()                # apply gradients
 
@@ -179,28 +185,34 @@ cifar_stats = ((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
 
 class TrainingService_CIFAR10(TrainingService):
 
-    def __init__(self, home_dir, normalize_data, device='cpu', gaussian_noise_epsilon=0.3,
+    def __init__(self, home_dir, device='cpu', gaussian_noise_epsilon=0.5,
                  num_batches_per_epoch=-1):
         self.home_dir = home_dir
-        self.prepare_data(normalize_data, gaussian_noise_epsilon)
+        self.prepare_data(gaussian_noise_epsilon)
         self.device = device
         self.num_batches_per_epoch = num_batches_per_epoch # set to a small value for testing
         self.scramble = ChoiceScramble([PixelScramble(), BlockScramble(3), BlockScramble(9)])
         self.num_classes = 10
 
-    def prepare_data(self, normalize_data, gaussian_noise_epsilon):
+    def prepare_data(self, gaussian_noise_epsilon):
         # Data
         print('==> Preparing data..')
         # Tried random rotating, gaussian noise, and random erasing as in MNIST 
         # but models fail to learn. Didn't try them individually.
+
         transform_train = torchvision.transforms.Compose([
                 torchvision.transforms.RandomCrop(32, padding=4),
+                torchvision.transforms.RandomRotation(degrees=10),
                 torchvision.transforms.RandomHorizontalFlip(),
                 torchvision.transforms.ToTensor(),
-        ] + ([torchvision.transforms.Normalize(*cifar_stats)] if normalize_data else []))
+                torchvision.transforms.Normalize(*cifar_stats),
+                # it's important to apply noise _after_ normalization
+                gaussian_noise(gaussian_noise_epsilon),
+        ])
         transform_test = torchvision.transforms.Compose([
                 torchvision.transforms.ToTensor(),
-        ] + ([torchvision.transforms.Normalize(*cifar_stats)] if normalize_data else []))
+                torchvision.transforms.Normalize(*cifar_stats)
+        ])
         self.trainset = torchvision.datasets.CIFAR10(root='./cifar10', train=True, download=True, transform=transform_train)
         self.testset = torchvision.datasets.CIFAR10(root='./cifar10', train=False, download=True, transform=transform_test)
 
@@ -217,7 +229,7 @@ class TrainingService_CIFAR10(TrainingService):
                 inputs, targets = inputs.to(self.device), targets.to(self.device)
                 self.optimizer.zero_grad()
                 outputs, _ = net(inputs)
-                loss = self.compute_loss(epoch, net, inputs, targets, outputs, conf)
+                loss, _, reg_loss, _ = self.compute_loss(epoch, net, inputs, targets, outputs, conf)
                 loss.backward()
                 self.optimizer.step()
 
@@ -230,6 +242,7 @@ class TrainingService_CIFAR10(TrainingService):
                     print(batch_idx, '/', len(self.trainloader)*conf['batch_size_multiplier'], 
                         ': Loss: %.3f | Acc: %.3f%% (%d/%d)'
                         % (train_loss/(batch_idx+1), 100.*acc, correct, total))
+                    print('Regularization loss: %f' % reg_loss.item())
                     print_control_params(net)
                 if self.num_batches_per_epoch > 0 and batch_idx >= self.num_batches_per_epoch:
                     break # end it early so that we can test the code
@@ -271,7 +284,7 @@ class TrainingService_CIFAR10(TrainingService):
             'regularization': None, 'regularization_start_epoch': 10, 'l1': 0, 'l2': 0,
             'bias_l1': 0, 'bias_l2': 0, 'use_scrambling': False, 'use_overlay': False,
             'use_elliptical': False, 'use_quadratic': False, 
-            'use_homemade_initialization': False, 'log_strength_inc': 0.001,
+            'log_strength_inc': 0.001,
             'log_strength_start': 0, 'log_strength_stop': 1, 'log_correction_multiplier': 1,
             'batch_size_multiplier': 1, 'report_interval': 150,
             'curvature_multiplier_inc': 1e-4, 'curvature_multiplier_start': 0,
@@ -311,15 +324,14 @@ class TrainingService_CIFAR10(TrainingService):
                 print('Model saved to %s' % out_path)
         return net
 
-def train(dataset, device='cpu', normalize_data=True, **kwargs):
+def train(dataset, device='cpu', **kwargs):
     if 'cuda' in device: 
         assert torch.cuda.is_available()
     print("Using device: %s" % device)
     if dataset == 'mnist':
         ts = TrainingService_MNIST(home_dir='.', device=device)
     elif dataset == 'cifar-10':
-        ts = TrainingService_CIFAR10(home_dir='.', device=device, 
-                                     normalize_data=normalize_data)
+        ts = TrainingService_CIFAR10(home_dir='.', device=device)
     else:
         raise ValueError("Unsupported dataset: " + str(dataset))
     cnn = ts.build_and_train(**kwargs)

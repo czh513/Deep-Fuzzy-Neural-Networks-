@@ -13,23 +13,6 @@ class Lambda(nn.Module):
     def forward(self, x):
         return self.func(x)
 
-class DynamicInitializer(object):
-
-    def __init__(self):
-        self.run_already = False
-
-    def __call__(self, layer, input):
-        global bounds
-        if not self.run_already:
-            input, = input # for some reasons, it comes as a tuple
-            E_x2 = (input*input).mean().item()
-            fan_in, _ = nn.init._calculate_fan_in_and_fan_out(layer.weight)
-            bound = 1 / math.sqrt(fan_in * E_x2)
-            nn.init.normal_(layer.weight, mean=0, std=0.9*bound)
-            nn.init.constant_(layer.bias, 0)
-            bounds.append(bound)
-            self.run_already = True
-
 # if you want a gradual ramping up, change this
 # put it to negative if you want to start after some epochs
 log_strength_start = 1 # start right away
@@ -59,12 +42,12 @@ class ReLog(nn.Module):
     def forward(self, input):
         if self.training:
             self.log_strength = min(log_strength_stop, self.log_strength + log_strength_inc)
-        effective_log_strength = max(0, self.log_strength)
+        k = max(0, self.log_strength) # effective log strength
         linear_term = F.relu(input)
         relog_func = lambda x: torch.log(F.relu(x) + 1/self.n) / math.log(self.n) + 1
-        log_term = relog_func(input + effective_log_strength * log_correction_multiplier)
+        log_term = relog_func(input)
         # interpolate ReLog-ReLU to stabalize training
-        return log_term * effective_log_strength + linear_term * (1-effective_log_strength)
+        return (log_term * k + linear_term * (1-k))*(1+2*k*k)
 
     def extra_repr(self):
         return 'n=%.2f' % (self.n)
@@ -197,8 +180,6 @@ class ExperimentalModel(nn.Module):
         else:
             f = nn.Linear
         module = f(*args, **kwargs)
-        if self.conf['use_homemade_initialization']:
-            module.register_forward_pre_hook(DynamicInitializer())
         return module
 
     def conv(self, *args, **kwargs):
@@ -209,12 +190,10 @@ class ExperimentalModel(nn.Module):
         else:
             f = nn.Conv2d
         module = f(*args, **kwargs)
-        if self.conf['use_homemade_initialization']:
-            module.register_forward_pre_hook(DynamicInitializer())
         return module
 
     def activation_func(self, layer_no=None):
-        return (ReLog(inplace=True) if self.conf['use_relog']
+        return (ReLog(self.conf['relog_n'], inplace=True) if self.conf['use_relog']
                 else nn.ReLU(inplace=True))
 
     def wrap_linear(self, linear, activ=True, layer_no=None):
@@ -244,10 +223,10 @@ class ExperimentalModel(nn.Module):
 class CNN(ExperimentalModel):
 
     config_defaults = {
-        'use_relog': False, 'use_maxout': '', 'max_folding_factor': 4, 'min_folding_factor': 2,
+        'use_relog': False, 'relog_n': 10,
+        'use_maxout': '', 'max_folding_factor': 4, 'min_folding_factor': 2,
         'conv1_out_channels': 16, 'conv2_out_channels': 32,
         'use_elliptical': False, 'use_quadratic': False, 'use_batchnorm': False,
-        'use_homemade_initialization': False
     }
 
     def __init__(self, **kwargs):
@@ -290,9 +269,10 @@ cfg = {
 class VGG(ExperimentalModel):
 
     config_defaults = {
-        'use_relog': False, 'modification_start_layer': 0, 'use_maxout': '', 'max_folding_factor': 4, 'min_folding_factor': 2,
+        'use_relog': False, 'relog_n': 5, 'modification_start_layer': 0, 
+        'use_maxout': '', 'max_folding_factor': 4, 'min_folding_factor': 2,
         'use_elliptical': False, 'use_quadratic': False, 'use_batchnorm': False,
-        'use_homemade_initialization': False, 'vgg_name': 'VGG16', 'capacity_factor': 1
+        'vgg_name': 'VGG16', 'capacity_factor': 1
     }
 
     def __init__(self, vgg_name="VGG11", **kwargs):

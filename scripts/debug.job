@@ -17,14 +17,21 @@ train() {
     python -u train.py cifar-10 --vgg_name='VGG11' --use_batchnorm=True --modification_start_layer=0 --out_path=output/debug/$name.pkl $second_param_onwards &> output/debug/$name.log
 }
 
+# trying faster training
+train debugging-relog-elliptical-maxout-fast_training --device=cuda:0 --use_elliptical --curvature_multiplier_start=-1 --curvature_multiplier_stop=1 --curvature_multiplier_inc=0.001 --use_relog=True --log_strength_start=-1 --log_strength_inc=0.001 --use_maxout=max --max_folding_factor=4 --n_epochs=40 &
+train debugging-relog-elliptical-maxout-maxfit_l1-fast_training --device=cuda:1 --use_elliptical --curvature_multiplier_start=-1 --curvature_multiplier_stop=1 --curvature_multiplier_inc=0.001 --use_relog=True --log_strength_start=-1 --log_strength_inc=0.001 --use_maxout=max --max_folding_factor=4 --regularization=max-fit --l1=1 --bias_l1=1 --regularization_start_epoch=5 --n_epochs=40 &
+wait
+
+# successful training sessions:
 # train debugging-relu --device=cuda:0 &
 # train debugging-relu-elliptical --device=cuda:0 --use_elliptical --curvature_multiplier_start=-0.5 --curvature_multiplier_stop=1 --n_epochs=80 &
 # train debugging-relog-elliptical --device=cuda:1 --use_elliptical --curvature_multiplier_start=-0.5 --curvature_multiplier_stop=1 --use_relog=True --log_strength_start=-1 --log_strength_inc=0.0001 --n_epochs=80 &
 # wait
 
-train debugging-relog-elliptical-maxout --device=cuda:0 --use_elliptical --curvature_multiplier_start=-0.5 --curvature_multiplier_stop=1 --use_relog=True --log_strength_start=-1 --log_strength_inc=0.0001 --log_correction_multiplier=1.5 --use_maxout=max --max_folding_factor=4 --n_epochs=80 &
-train debugging-relog-elliptical-maxout-maxfit_l1 --device=cuda:1 --use_elliptical --curvature_multiplier_start=-0.5 --curvature_multiplier_stop=1 --use_relog=True --log_strength_start=-1 --log_strength_inc=0.0001 --log_correction_multiplier=1.5 --use_maxout=max --max_folding_factor=4 --regularization=max-fit --l1=1 --bias_l1=1 --regularization_start_epoch=52 --n_epochs=80 &
-wait
+# nearly successful training sessions:
+# train debugging-relog-elliptical-maxout --device=cuda:0 --use_elliptical --curvature_multiplier_start=-0.5 --curvature_multiplier_stop=1 --use_relog=True --log_strength_start=-1 --log_strength_inc=0.0001 --log_correction_multiplier=1.5 --use_maxout=max --max_folding_factor=4 --n_epochs=80 &
+# train debugging-relog-elliptical-maxout-maxfit_l1 --device=cuda:1 --use_elliptical --curvature_multiplier_start=-0.5 --curvature_multiplier_stop=1 --use_relog=True --log_strength_start=-1 --log_strength_inc=0.0001 --log_correction_multiplier=1.5 --use_maxout=max --max_folding_factor=4 --regularization=max-fit --l1=1 --bias_l1=1 --regularization_start_epoch=52 --n_epochs=80 &
+# wait
 
 execute_attack() {
     third_param_onwards="${@:3}"

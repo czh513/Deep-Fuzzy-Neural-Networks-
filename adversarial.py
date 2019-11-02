@@ -132,7 +132,7 @@ class AdversarialExperiment(object):
         print('Perturbation strength (L2): %.1f' % self.saved_diff_norm[idx], file=sys.stderr)
 
 def run(attack=None, model_path=None, model_device=None, dataset=None, batch_size=100, 
-                   normalize_data=True, json_out_path=True, num_batches=-1, report_interval=20, **kwargs):
+        json_out_path=True, num_batches=-1, report_interval=20, **kwargs):
     '''
     Default params are set based on this paper as much as possible:
     Taghanaki, S. A., Abhishek, K., Azizi, S., & Hamarneh, G. (2019). A Kernelized Manifold Mapping 
@@ -187,8 +187,10 @@ def run(attack=None, model_path=None, model_device=None, dataset=None, batch_siz
             # input is normalized to normal distribution, 3 sigmas are enough for clipping
             'clip_min': -3., 'clip_max': 3.,
         })
-        transform_test = transforms.Compose([transforms.ToTensor(),
-                ] + ([transforms.Normalize(*cifar_stats)] if normalize_data else []))
+        transform_test = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize(*cifar_stats)
+        ])
         # important to shuffle the data since we'll measure standard deviation
         test_data = datasets.CIFAR10(root='./cifar10', train=False, transform=transform_test)
     else: 
