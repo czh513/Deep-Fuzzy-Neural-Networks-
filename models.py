@@ -14,7 +14,7 @@ class Lambda(nn.Module):
         return self.func(x)
 
 # put it to negative if you want to start after some epochs
-log_strength_start = 0.001
+log_strength_start = 0
 log_strength_inc = 0.001
 log_strength_stop = 1
 
@@ -40,7 +40,7 @@ class ReLog(nn.Module):
     def forward(self, input):
         if self.training:
             self.log_strength = min(log_strength_stop, self.log_strength + log_strength_inc)
-        beta = max(0, self.log_strength) # effective log strength
+        beta = max(1e-4, self.log_strength) # effective log strength
         relog_func = lambda x: torch.log(F.relu(x)*beta + 1) / beta
         return relog_func(input)
 

@@ -9,8 +9,8 @@
 echo -n "Started: " && date
 
 # train two at the same time to utilize Cartesius's GPUs
-python -u train.py cifar-10 --vgg_name=VGG16 --device=cuda:0 --out_path=$1/vgg16.pkl \
-        --n_epochs=100 --lr=0.01 --use_batchnorm=True &> $1/train-vgg16.log &
+python -u train.py cifar-10 --vgg_name=VGG11 --device=cuda:0 --out_path=$1/VGG11.pkl \
+        --n_epochs=100 --lr=0.01 --use_batchnorm=True &> $1/train-VGG11.log &
 python -u train.py cifar-10 --vgg_name=VGG19 --device=cuda:1 --out_path=$1/vgg19.pkl \
         --n_epochs=100 --lr=0.01 --use_batchnorm=True &> $1/train-vgg19.log &
 wait

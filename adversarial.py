@@ -19,8 +19,9 @@ print("Using device: %s" % device, file=sys.stderr)
 
 class AdversarialExperiment(object):
 
-    def __init__(self, attack, params, test_data, batch_size, report_interval=20):
-        self.attack = attack
+    def __init__(self, attack_name, attack_func, params, test_data, batch_size, report_interval=20):
+        self.attack_name = attack_name
+        self.attack = attack_func
         self.params = {**params} # avoid modifying the dict
         self.test_data = test_data
         self.batch_size = batch_size
@@ -86,16 +87,16 @@ class AdversarialExperiment(object):
                     accuracies.append(correct / total)
                     if self.report_interval > 0 and batch_no % self.report_interval == 0:
                         elapsed_sec = time() - start_sec
-                        print('Batch: #%d, accuracy: %.2f, std: %.2f, %.1f secs/batch' 
-                              %(batch_no, np.mean(accuracies), np.std(accuracies),
+                        print('%s: Batch: #%d, accuracy: %.2f, std: %.2f, %.1f secs/batch' 
+                              %(self.attack_name, batch_no, np.mean(accuracies), np.std(accuracies),
                                 elapsed_sec / (batch_no+1)), file=sys.stderr)
 
                     if num_batches > 0 and batch_no+1 >= num_batches: break
             except KeyboardInterrupt:
                 print('Evaluation aborted', file=sys.stderr)
             self._process_saved_info()
-            print('Accuracy under attack: %.2f (std=%.2f)' 
-                  %(np.mean(accuracies), np.std(accuracies)), file=sys.stderr)
+            print('%s: Accuracy under attack: %.2f (std=%.2f)' 
+                  %(self.attack_name, np.mean(accuracies), np.std(accuracies)), file=sys.stderr)
             return accuracies
 
     def _process_saved_info(self):
@@ -196,7 +197,7 @@ def run(attack=None, model_path=None, model_device=None, dataset=None, batch_siz
     else: 
         raise ValueError("Unsupported dataset: " + str(dataset))
 
-    ex = AdversarialExperiment(attack_func, attack_params, test_data, batch_size, report_interval=report_interval)
+    ex = AdversarialExperiment(attack, attack_func, attack_params, test_data, batch_size, report_interval=report_interval)
     print('Evaluating model %s on attack %s' % (model_path, str(attack)), file=sys.stderr)
     accuracies = ex.evaluate_model(model_path, model_device=model_device, num_batches=num_batches)
     results = {

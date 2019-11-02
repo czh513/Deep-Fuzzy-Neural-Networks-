@@ -1127,7 +1127,43 @@ Jos submitted:
             7064767       gpu train-mn   minhle  R       0:29      1 gcn36
             7064768       gpu train-mn   minhle  R       0:29      1 gcn66
 
-Weighting the positive classes higher than negative classes
-turns out to be a terrible idea. The network starts with maximum
-activation everywhere and the negative classes is weighted too
-low to push it down
+Went into panic mode because my MNIST-MSE models fail to train but turns
+out it's because the elliptic start strength is set to 1 so it's rather
+unstable (sometimes it trains, sometimes it doesn't)...
+
+New job submitted:
+
+    [minhle@int1 newlogic]$ drake +=output/ablation-mnist-models
+    The following steps will be run, in order:
+    --- 4. Running (forced): /nfs/home2/minhle/newlogic/././output/ablation-mnist-models <- /nfs/home2/minhle/newlogic/././train.py
+    Submitted batch job 7064904
+    Submitted batch job 7064905
+    Jobs submitted, please wait for a few hours
+    [minhle@int1 newlogic]$ !squ
+    squeue | grep minh
+            7064904       gpu train-mn   minhle  R       0:05      1 gcn66
+            7064905       gpu train-mn   minhle  R       0:05      1 gcn21
+
+Trying CIFAR-10 again...
+
+    [minhle@int1 newlogic]$ drake output/ablation-cifar10-models output/ablation-cifar10-models2
+    --- 2. Running (missing output): /nfs/home2/minhle/newlogic/././output/ablation-cifar10-models <- /nfs/home2/minhle/newlogic/././train.py
+    Submitted batch job 7064931
+    Job submitted, please wait for >1 day
+    --- 3. Running (missing output): /nfs/home2/minhle/newlogic/././output/ablation-cifar10-models2 <- /nfs/home2/minhle/newlogic/././train.py
+    Submitted batch job 7064932
+    Job submitted, please wait for >1 day
+
+ReLU results:
+
+    FGM_inf: Accuracy under attack: 0.11 (std=0.03)
+    FGM_L2: Accuracy under attack: 0.45 (std=0.05)
+    BIM: Accuracy under attack: 0.02 (std=0.01)
+    CW: Accuracy under attack: 0.00 (std=0.01)
+
+ReLog results:
+
+    FGM_inf: Accuracy under attack: 0.18 (std=0.04)
+    FGM_L2: Accuracy under attack: 0.44 (std=0.05)
+    BIM: Accuracy under attack: 0.01 (std=0.01)
+    CW: Accuracy under attack: 0.05 (std=0.02)

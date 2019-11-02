@@ -15,19 +15,16 @@ train() {
     second_param_onwards="${@:2}"
     echo "Training $name"
     # use this for testing: --vgg_name=VGG4 
-    python -u train.py cifar-10 --report_interval=50 --vgg_name=VGG16 --use_batchnorm=True --modification_start_layer=0 --out_path=$out_dir/$name.pkl $second_param_onwards &> $out_dir/$name.log
+    python -u train.py cifar-10 --vgg_name=VGG11 --use_batchnorm=True --modification_start_layer=0 --n_epochs=80 --out_path=$out_dir/$name.pkl $second_param_onwards &> $out_dir/$name.log
 }
 
-train relu-maxout-elliptical --device=cuda:0 --use_maxout=max --max_folding_factor=2 --use_elliptical=True --capacity_factor=2 &
-train relog_slow-maxout-elliptical --device=cuda:1 --use_relog=True --log_strength_inc=0.0001 --use_maxout=max --max_folding_factor=2 --use_elliptical=True --capacity_factor=2 &
-wait
+relog_conf="--use_relog=True --log_strength_start=-0.4 --log_strength_inc=0.0001"
+elliptical_conf="--use_elliptical=True --curvature_multiplier_start=-0.5 --curvature_multiplier_stop=1"
+maxout_conf="--use_maxout=max --max_folding_factor=4"
+maxfit_conf="--regularization=max-fit --l1=1 --bias_l1=1 --regularization_start_epoch=52"
 
-train relog_slow-maxout-elliptical --device=cuda:0 --use_relog=True --log_strength_inc=0.0001 --use_maxout=max --max_folding_factor=2 --use_elliptical=True --capacity_factor=2 &
-train relog_slow-maxout-elliptical-max_fit_l1 --device=cuda:1 --use_relog=True --log_strength_inc=0.0001 --use_maxout=max --max_folding_factor=2 --use_elliptical=True --regularization=max-fit --l1=0.01 --bias_l1=0.01 --capacity_factor=2 &
-wait
-
-train relog_slow-maxout-elliptical-max_fit_l1-mse --device=cuda:0 --use_relog=True --log_strength_inc=0.0001 --use_maxout=max --max_folding_factor=2 --use_elliptical=True --regularization=max-fit --l1=0.01 --bias_l1=0.01 --use_mse=True --capacity_factor=2 &
-train relog_slow-maxout-elliptical-max_fit_l1-mse-overlay --device=cuda:1 --use_relog=True --log_strength_inc=0.0001 --use_maxout=max --max_folding_factor=2 --use_elliptical=True --regularization=max-fit --l1=0.01 --bias_l1=0.01 --use_mse=True --use_overlay=True --capacity_factor=2 &
+train relog-maxout-elliptical-max_fit_l1-mse --device=cuda:0 $relog_conf $elliptical_conf $maxout_conf $maxfit_conf --use_mse=True &
+train relog-maxout-elliptical-max_fit_l1-mse-overlay --device=cuda:1 $relog_conf $elliptical_conf $maxout_conf $maxfit_conf --use_mse=True --use_overlay=True &
 wait
 
 echo -n "Finished: " && date
