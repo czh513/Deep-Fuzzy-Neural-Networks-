@@ -20,7 +20,8 @@ train() {
 
 . scripts/cifar10-common.sh
 
-train relog-elliptical-maxfit --device=cuda:0 $relog_conf $elliptical_conf $maxfit_conf &
+(train relog-elliptical --device=cuda:0 $relog_conf $elliptical_conf ; \
+ train relog-elliptical-maxfit --device=cuda:0 $relog_conf $elliptical_conf $maxfit_conf) &
 train relog-elliptical-maxout-maxfit_l1 --device=cuda:1 $relog_conf $elliptical_conf $maxout_conf $maxfit_conf &
 wait
 

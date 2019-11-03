@@ -22,9 +22,9 @@ elliptical_conf=" --use_elliptical --curvature_multiplier_start=0.5 --curvature_
 relog_conf="--use_relog=True --log_strength_start=-1 --log_strength_inc=0.001"
 maxout_conf="--use_maxout=max --max_folding_factor=4 --n_epochs=40"
 regularization_conf="--regularization=max-fit --l1=1 --bias_l1=0.5 --regularization_start_epoch=5 --n_epochs=40"
-train debugging-relog-elliptical-maxout-fast_training --device=cuda:0 $elliptical_conf $relog_conf $maxout_conf &
-train debugging-relog-elliptical-maxout-maxfit_l1-fast_training --device=cuda:1 $elliptical_conf $relog_conf $maxout_conf $regularization_conf &
-wait
+# train debugging-relog-elliptical-maxout-fast_training --device=cuda:0 $elliptical_conf $relog_conf $maxout_conf &
+# train debugging-relog-elliptical-maxout-maxfit_l1-fast_training --device=cuda:1 $elliptical_conf $relog_conf $maxout_conf $regularization_conf &
+# wait
 
 # successful training sessions:
 # train debugging-relu --device=cuda:0 &
@@ -44,13 +44,13 @@ execute_attack() {
             --report_interval=5 --model_device=cpu # using CPUs to avoid OOM on a GPU
 }
 
-# for model_path in output/debug/debugging-relog-elliptical-maxout-fast_training.pkl output/debug/debugging-relog-elliptical-maxout-maxfit_l1-fast_training.pkl
-# do
-#     # execute_attack BIM $model_path --num_batches=10 &
-#     # execute_attack CW $model_path --num_batches=10 &
-#     execute_attack FGM_inf $model_path --num_batches=10 &
-#     execute_attack FGM_L2 $model_path --num_batches=10 &
-#     wait
-# done
+for model_path in output/debug/debugging-relog-elliptical-maxout-fast_training.pkl output/debug/debugging-relog-elliptical-maxout-maxfit_l1-fast_training.pkl
+do
+    # execute_attack BIM $model_path --num_batches=10 &
+    # execute_attack CW $model_path --num_batches=10 &
+    execute_attack FGM_inf $model_path --num_batches=10 &
+    execute_attack FGM_L2 $model_path --num_batches=10 &
+    wait
+done
 
 echo -n "Finished: " && date

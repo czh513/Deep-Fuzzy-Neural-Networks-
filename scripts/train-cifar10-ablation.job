@@ -21,9 +21,8 @@ train() {
 
 # Notice: can't share this part with mnist because some params are different
 # Notice: don't use "\" to put parameters on the next line, the method will ignore them...
-(train relu --device=cuda:0 ; \
- train relog --device=cuda:0 $relog_conf) &
-train relog-elliptical --device=cuda:0 $relog_conf $elliptical_conf &
+train relu --device=cuda:0 &
+train relog --device=cuda:1 $relog_conf &
 wait
 
 echo -n "Finished: " && date
