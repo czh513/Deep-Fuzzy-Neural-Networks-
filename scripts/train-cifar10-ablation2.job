@@ -22,9 +22,13 @@ relog_conf="--use_relog=True --log_strength_start=-0.4 --log_strength_inc=0.0001
 elliptical_conf="--use_elliptical=True --curvature_multiplier_start=-0.5 --curvature_multiplier_stop=1"
 maxout_conf="--use_maxout=max --max_folding_factor=4"
 maxfit_conf="--regularization=max-fit --l1=1 --bias_l1=1 --regularization_start_epoch=52"
+mse_conf="--use_mse=True --mse_weighted=False"
 
-train relog-maxout-elliptical-max_fit_l1-mse --device=cuda:0 $relog_conf $elliptical_conf $maxout_conf $maxfit_conf --use_mse=True &
-train relog-maxout-elliptical-max_fit_l1-mse-overlay --device=cuda:1 $relog_conf $elliptical_conf $maxout_conf $maxfit_conf --use_mse=True --use_overlay=True &
+train relog-elliptical-maxfit --device=cuda:1 $relog_conf $elliptical_conf $maxfit_conf &
+wait
+
+train relog-maxout-elliptical-max_fit_l1-mse --device=cuda:0 $relog_conf $elliptical_conf $maxout_conf $maxfit_conf $mse_conf &
+train relog-maxout-elliptical-max_fit_l1-mse-overlay --device=cuda:1 $relog_conf $elliptical_conf $maxout_conf $maxfit_conf $mse_conf --use_overlay=True &
 wait
 
 echo -n "Finished: " && date

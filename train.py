@@ -45,10 +45,13 @@ class TrainingService(object):
         if conf['use_mse']:
             train_y = one_hot(train_y, num_classes=self.num_classes).float()
             output = output.sigmoid()
-            if conf['use_scrambling'] or conf['use_overlay']:
-                loss_func = WeightedMSELoss(19, 1) # hard code for now...
+            if conf['mse_weighted']:
+                if conf['use_scrambling'] or conf['use_overlay']:
+                    loss_func = WeightedMSELoss(19, 1) # hard code for now...
+                else:
+                    loss_func = WeightedMSELoss(9, 1) # hard code for now...
             else:
-                loss_func = WeightedMSELoss(9, 1) # hard code for now...
+                loss_func = nn.MSELoss()
         else:
             loss_func = nn.CrossEntropyLoss()
         main_loss = loss_func(output, train_y)
@@ -125,7 +128,7 @@ class TrainingService_MNIST(TrainingService):
             'use_mse': False, 'lr': 0.001, 'out_path': None, 'train_batch_size': 64, 
             'regularization': None, 'regularization_start_epoch': 2, 'l1': 0, 'l2': 0, 
             'bias_l1': 0, 'bias_l2': 0, 'use_scrambling': False, 'use_overlay': False,
-            'use_elliptical': False, 'use_quadratic': False
+            'use_elliptical': False, 'use_quadratic': False, 'mse_weighted': False,
         }
 
         model_kwargs = {k:v for k, v in kwargs.items() if k in models.CNN.config_defaults}
@@ -285,7 +288,7 @@ class TrainingService_CIFAR10(TrainingService):
             'log_strength_start': 0.001, 'log_strength_stop': 1,
             'batch_size_multiplier': 1, 'report_interval': 150,
             'curvature_multiplier_inc': 1e-4, 'curvature_multiplier_start': 0,
-            'curvature_multiplier_stop': 1, 'n_epochs': 40
+            'curvature_multiplier_stop': 1, 'n_epochs': 40, 'mse_weighted': False,
         }
         unrecognized_params = [k for k in kwargs
                                if not (k in models.VGG.config_defaults or k in config_defaults)]

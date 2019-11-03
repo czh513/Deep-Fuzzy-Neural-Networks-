@@ -29,10 +29,7 @@ train relog --device=cuda:1 $relog_conf &
 wait
 
 train relog-elliptical --device=cuda:0 $relog_conf $elliptical_conf &
-train relog-elliptical-maxout --device=cuda:1 $relog_conf $elliptical_conf $maxout_conf &
-wait
-
-train relog-elliptical-maxout-maxfit_l1 --device=cuda:0 $relog_conf $elliptical_conf $maxout_conf $maxfit_conf &
+train relog-elliptical-maxout-maxfit_l1 --device=cuda:1 $relog_conf $elliptical_conf $maxout_conf $maxfit_conf &
 wait
 
 echo -n "Finished: " && date
