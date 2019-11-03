@@ -12,7 +12,9 @@ output/ablation-cifar10-models <- train.py [-timecheck]
 
 output/ablation-cifar10-models2 <- train.py [-timecheck]
     mkdir -p $OUTPUT0
-    sbatch scripts/train-cifar10-ablation2.job $OUTPUT0 && echo "Job submitted, please wait for >1 day"
+    sbatch scripts/train-cifar10-ablation2.job $OUTPUT0 
+    sbatch scripts/train-cifar10-ablation3.job $OUTPUT0 
+    echo "Job submitted, please wait for >1 day"
 
 output/ablation-mnist-models <- train.py [-timecheck]
     mkdir -p $OUTPUT0

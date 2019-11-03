@@ -20,8 +20,8 @@ train() {
 
 . scripts/cifar10-common.sh
 
-train relog-elliptical-maxfit --device=cuda:0 $relog_conf $elliptical_conf $maxfit_conf &
-train relog-elliptical-maxout-maxfit_l1 --device=cuda:1 $relog_conf $elliptical_conf $maxout_conf $maxfit_conf &
+train relog-maxout-elliptical-max_fit_l1-mse --device=cuda:0 $relog_conf $elliptical_conf $maxout_conf $maxfit_conf $mse_conf &
+train relog-maxout-elliptical-max_fit_l1-mse-overlay --device=cuda:1 $relog_conf $elliptical_conf $maxout_conf $maxfit_conf $mse_conf --use_overlay=True &
 wait
 
 echo -n "Finished: " && date

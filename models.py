@@ -13,6 +13,8 @@ class Lambda(nn.Module):
     def forward(self, x):
         return self.func(x)
 
+freeze_hyperparams = False
+
 # put it to negative if you want to start after some epochs
 log_strength_start = 0
 log_strength_inc = 0.001
@@ -38,7 +40,7 @@ class ReLog(nn.Module):
         self.log_strength = log_strength_start
 
     def forward(self, input):
-        if self.training:
+        if self.training and not freeze_hyperparams:
             self.log_strength = min(log_strength_stop, self.log_strength + log_strength_inc)
         beta = max(1e-4, self.log_strength) # effective log strength
         relog_func = lambda x: torch.log(F.relu(x)*beta + 1) / beta
@@ -54,7 +56,7 @@ curvature_multiplier_inc = 0.001
 curvature_multiplier_stop = 1
 
 def update_curvature_multiplier(m):
-    if m.training:
+    if m.training and not freeze_hyperparams:
         m.multiplier = min(
             curvature_multiplier_stop, 
             m.multiplier + curvature_multiplier_inc)

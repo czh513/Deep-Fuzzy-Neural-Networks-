@@ -1167,3 +1167,56 @@ ReLog results:
     FGM_L2: Accuracy under attack: 0.44 (std=0.05)
     BIM: Accuracy under attack: 0.01 (std=0.01)
     CW: Accuracy under attack: 0.05 (std=0.02)
+
+# Sun 3 Nov
+
+So I managed to train ReLog with somewhat positive results but
+training elliptical units and the combination of them remain 
+difficult. Tried to implement a simple trick: whenever the test
+accuracy collapses, rollback to the last checkpoint and train
+5 more epochs without ramping up elliptical or relog.
+(I'll switch to using training acc instead.) This trick seems to work:
+
+    Test eval: Loss: 0.792 | Acc: 71.700% (7170/10000)
+    Test eval: Loss: 2.092 | Acc: 19.440% (1944/10000) <-- collapse!
+    === Trying to overcome collapse point ===
+    Test eval: Loss: 0.768 | Acc: 72.550% (7255/10000)
+    === Trying to overcome collapse point ===
+    Test eval: Loss: 0.769 | Acc: 72.650% (7265/10000)
+    === Trying to overcome collapse point ===
+    Test eval: Loss: 0.769 | Acc: 72.680% (7268/10000)
+    === Trying to overcome collapse point ===
+    Test eval: Loss: 0.769 | Acc: 72.650% (7265/10000)
+    === Trying to overcome collapse point ===
+    Test eval: Loss: 0.768 | Acc: 72.710% (7271/10000)
+    Test eval: Loss: 0.932 | Acc: 68.430% (6843/10000)
+    Test eval: Loss: 0.806 | Acc: 71.410% (7141/10000)
+    Test eval: Loss: 0.836 | Acc: 71.270% (7127/10000)
+
+Elliptical only doesn't help increase robustness, which I expected
+(we need maxout to create disconnected regions):
+
+    FGM_inf: Accuracy under attack: 0.09 (std=0.02)
+    FGM_L2: Accuracy under attack: 0.30 (std=0.05)
+
+Wait a minute... Even with curvature=0.5, the filters are still
+elliptical. Why do I need to increase it to so high? I can let the data
+decide by running max-fit regularization instead...
+
+Testing regularization strength on a smaller model. I made the regularization
+gradient independent from the depth of the network so hopefully it would
+transfer between models.
+
+Trying to compare a VGG4 model without and with maxfit, quickly test on 1000 examples. 
+Without:
+
+    FGM_inf: Accuracy under attack: 0.04 (std=0.02)
+    FGM_L2: Accuracy under attack: 0.29 (std=0.04)
+
+With maxfit and a few more epochs:
+
+    FGM_inf: Accuracy under attack: 0.06 (std=0.02)
+    FGM_L2: Accuracy under attack: 0.30 (std=0.04)
+
+Should I increase regularization strength?
+

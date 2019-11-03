@@ -87,7 +87,7 @@ class TrainingService(object):
 def print_control_params(net):
     # tried measuring all weights and quadratic weights here but mean and std
     # weren't helpful. whatever changes they have they don't reflect on overall stats
-    print('Curvature multiplier: %.4f, log strength %.4f'
+    print('  Curvature multiplier: %.4f, log strength %.4f'
         %(models.extract_curvature_strength(net),
             models.extract_log_strength(net)))
 
@@ -194,6 +194,7 @@ class TrainingService_CIFAR10(TrainingService):
         self.num_batches_per_epoch = num_batches_per_epoch # set to a small value for testing
         self.scramble = ChoiceScramble([PixelScramble(), BlockScramble(3), BlockScramble(9)])
         self.num_classes = 10
+        self.last_train_acc = self.last_test_acc = None
 
     def prepare_data(self, gaussian_noise_epsilon):
         # Data
@@ -222,8 +223,7 @@ class TrainingService_CIFAR10(TrainingService):
         print('\nEpoch: %d' % epoch)
         net.train()
         train_loss = 0
-        correct = 0
-        total = 0
+        correct = total = 0
         batch_idx = 0
         for _ in range(conf['batch_size_multiplier']):
             for inputs, targets in self.trainloader:
@@ -243,18 +243,29 @@ class TrainingService_CIFAR10(TrainingService):
                     print(batch_idx, '/', len(self.trainloader)*conf['batch_size_multiplier'], 
                         ': Loss: %.3f | Acc: %.3f%% (%d/%d)'
                         % (train_loss/(batch_idx+1), 100.*acc, correct, total))
-                    print('Regularization loss: %f' % reg_loss.item())
+                    print('  Regularization loss: %f' % reg_loss.item())
                     print_control_params(net)
                 if self.num_batches_per_epoch > 0 and batch_idx >= self.num_batches_per_epoch:
                     break # end it early so that we can test the code
                 batch_idx += 1
         return acc
 
+    def train_acc_estimate(self, net, epoch, conf):
+        ''' Use this to detect training collapse '''
+        net.eval()
+        correct = total = 0
+        for inputs, targets in itertools.islice(self.trainloader, 25):
+            inputs, targets = inputs.to(self.device), targets.to(self.device)
+            outputs, _ = net(inputs)
+            _, predicted = outputs.max(1)
+            total += targets.size(0)
+            correct += predicted.eq(targets).sum().item()
+        return correct/total
+
     def test(self, net, epoch, conf):
         net.eval()
         test_loss = 0
-        correct = 0
-        total = 0
+        correct = total = 0
         with torch.no_grad():
             for batch_idx, (inputs, targets) in enumerate(self.testloader):
                 inputs, targets = inputs.to(self.device), targets.to(self.device)
@@ -315,12 +326,31 @@ class TrainingService_CIFAR10(TrainingService):
         net = net.to(self.device)
         for epoch in range(conf['n_epochs']):
             self.optimizer = optim.SGD(net.parameters(), lr=conf['lr'], momentum=0.9)
-            self.last_train_acc = self.train(net, epoch, conf) 
-            self.last_test_acc = self.test(net, epoch, conf)
-            out_path = kwargs.get('out_path')
-            if out_path:
-                torch.save(net, out_path)
-                print('Model saved to %s' % out_path)
+            self.train(net, epoch, conf)
+            new_train_acc = self.train_acc_estimate(net, epoch, conf)
+            training_has_collapsed = (self.last_train_acc and new_train_acc < 0.5 * self.last_train_acc)
+            if training_has_collapsed:
+                if conf['regularization'] and epoch >= conf['regularization_start_epoch']:
+                    print("Training might have collapsed because of excessive regularization, "
+                          "please adjust hyperparams, aborting...")
+                    break
+                else: # attempt recovery
+                    if conf['out_path'] and os.path.exists(conf['out_path']):
+                        models.freeze_hyperparams = True
+                        net = torch.load(conf['out_path']) # recover
+                        for _ in range(5):
+                            print('\n=== Trying to overcome collapse point ===')
+                            self.train(net, epoch, conf)
+                        print('\nNow, retrying normal training')
+                        models.freeze_hyperparams = False
+                    else:
+                        print("Collapse of training detected but no model available on disk")
+            else: # only test and write model in normal state
+                self.last_train_acc = new_train_acc
+                self.last_test_acc = self.test(net, epoch, conf)
+                if conf['out_path']:
+                    torch.save(net, conf['out_path'])
+                    print('Model saved to %s' % conf['out_path'])
         return net
 
 def train(dataset, device='cpu', **kwargs):
