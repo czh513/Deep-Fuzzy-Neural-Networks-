@@ -19,20 +19,16 @@ train() {
 
 # don't use "\" to put parameters on the next line, the method will ignore them...
 
-train relog-elliptical-maxout_4-mse-overlay --device=cuda:0 --use_relog=True --use_elliptical=True --use_mse=True --use_maxout=max --max_folding_factor=4 --use_overlay=True &
-train relog-elliptical-mse-max_fit_l1-overlay --device=cuda:1 --use_relog=True --use_elliptical=True --use_mse=True --regularization=max-fit --bias_l1=1 --l1=1 --use_overlay=True &
-wait
+(train relog-elliptical-maxout_4-mse-overlay --device=cuda:0 --use_relog=True --use_elliptical=True --use_mse=True --use_maxout=max --max_folding_factor=4 --use_overlay=True; \
+ train relog-elliptical-mse-max_fit_l1-overlay --device=cuda:0 --use_relog=True --use_elliptical=True --use_mse=True --regularization=max-fit --bias_l1=1 --l1=1 --use_overlay=True ; \
+ train relu-mse-overlay --device=cuda:0 --use_mse=True --use_overlay=True ; \
+ train relu-mse --device=cuda:0 --use_mse=True) &
 
-train relog-maxout_4-mse-max_fit_l1-overlay --device=cuda:0 --use_relog=True --use_mse=True --use_maxout=max --max_folding_factor=4 --regularization=max-fit --bias_l1=1 --l1=1 --use_overlay=True &
-train relu-elliptical-maxout_4-mse-max_fit_l1-overlay --device=cuda:1 --use_elliptical=True --use_mse=True --use_maxout=max --max_folding_factor=4 --regularization=max-fit --bias_l1=1 --l1=1 --use_overlay=True &
-wait
+(train relog-maxout_4-mse-max_fit_l1-overlay --device=cuda:1 --use_relog=True --use_mse=True --use_maxout=max --max_folding_factor=4 --regularization=max-fit --bias_l1=1 --l1=1 --use_overlay=True ; \
+ train relu-elliptical-maxout_4-mse-max_fit_l1-overlay --device=cuda:1 --use_elliptical=True --use_mse=True --use_maxout=max --max_folding_factor=4 --regularization=max-fit --bias_l1=1 --l1=1 --use_overlay=True ; \
+ train relu-maxout_4-mse-max_fit_l1-overlay --device=cuda:1 --use_mse=True --use_maxout=max --max_folding_factor=4 --regularization=max-fit --bias_l1=1 --l1=1 --use_overlay=True ; \
+ train relu-elliptical-mse-max_fit_l1-overlay --device=cuda:1 --use_elliptical=True --use_mse=True --regularization=max-fit --bias_l1=1 --l1=1 --use_overlay=True) &
 
-train relu-maxout_4-mse-max_fit_l1-overlay --device=cuda:0 --use_mse=True --use_maxout=max --max_folding_factor=4 --regularization=max-fit --bias_l1=1 --l1=1 --use_overlay=True &
-train relu-elliptical-mse-max_fit_l1-overlay --device=cuda:1 --use_elliptical=True --use_mse=True --regularization=max-fit --bias_l1=1 --l1=1 --use_overlay=True &
-wait
-
-train relu-mse-overlay --device=cuda:0 --use_mse=True --use_overlay=True &
-train relu-mse --device=cuda:1 --use_mse=True &
 wait
 
 echo -n "Finished: " && date

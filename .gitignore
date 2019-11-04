@@ -2,6 +2,6 @@
 /mnist
 /cifar10
 /data
-/output
+/output*
 .ipynb_checkpoints
 .drake

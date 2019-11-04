@@ -188,7 +188,7 @@ class ExperimentalModel(nn.Module):
         return module
 
     def activation_func(self, layer_no=None):
-        return (ReLog(self.conf['relog_beta'], inplace=True) if self.conf['use_relog']
+        return (ReLog(self.conf['relog_beta']) if self.conf['use_relog']
                 else nn.ReLU(inplace=True))
 
     def wrap_linear(self, linear, activ=True, layer_no=None):
