@@ -16,6 +16,7 @@ execute_attack() {
             --report_interval=5 --model_device=cpu # using CPUs to avoid OOM on a GPU
 }
 
+# parallel across models
 for model_path in $(ls $inp_dir/*.pkl)
 do
     execute_attack SPSA $model_path --num_batches=15 --nb_iter=50 &

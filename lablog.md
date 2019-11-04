@@ -1207,7 +1207,7 @@ Testing regularization strength on a smaller model. I made the regularization
 gradient independent from the depth of the network so hopefully it would
 transfer between models.
 
-Trying to compare a VGG4 model without and with maxfit, quickly test on 1000 examples. 
+Trying to compare a **VGG4 model** without and with maxfit, quickly test on 1000 examples. 
 Without:
 
     FGM_inf: Accuracy under attack: 0.04 (std=0.02)
@@ -1219,4 +1219,48 @@ With maxfit and a few more epochs:
     FGM_L2: Accuracy under attack: 0.30 (std=0.04)
 
 Should I increase regularization strength?
+Tried some more... This quick test is not sensitive enough to
+detect anything (or improvement is too small).
+
+This is too much, leads to lower results than un-regularized model
+(on both train and test):
+    
+    'l1': 1, 'bias_l1': 0.5
+
+Give elliptical and maxout models another try
+
+    (base) Minhs-MacBook-Pro:newlogic cumeo$ git log | head
+    commit cefa817722fcd42c65672e8e875c7e3a39f0d35f
+    Author: Minh Le <minhle.r7@gmail.com>
+    Date:   Mon Nov 4 00:57:31 2019 +0100
+
+        try half-strength elliptical,updated reg. strength
+
+    [minhle@int2 newlogic]$ drake +=output/ablation-cifar10-models2
+    --- 3. Running (forced): /nfs/home2/minhle/newlogic/././output/ablation-cifar10-models2 <- /nfs/home2/minhle/newlogic/././train.py
+    Submitted batch job 7066534
+    Submitted batch job 7066535
+
+# Mon 4 Nov
+
+CIFAR-10 models are training well with reduced curvature, MSE model even reaches 54% test acc.
+
+Rerunning MNIST models evaluation:
+
+    [minhle@int2 newlogic]$ drake output/subtractive-ablation-mnist-models output/ablation-mnist-results.json output/ablation-mnist-results2.json output/ablation-mnist-results3.json
+
+    --- 5. Running (missing output): /nfs/home2/minhle/newlogic/././output/subtractive-ablation-mnist-models <- /nfs/home2/minhle/newlogic/././train.py
+    Submitted batch job 7067581
+    Jobs submitted, please wait for a few hours
+    --- 6. Running (missing output): /nfs/home2/minhle/newlogic/././output/ablation-mnist-results.json <- /nfs/home2/minhle/newlogic/././output/ablation-mnist-models
+    Jobs submitted, please wait for a few hours
+    --- 7. Running (missing output): /nfs/home2/minhle/newlogic/././output/ablation-mnist-results2.json <- /nfs/home2/minhle/newlogic/././output/ablation-mnist-models
+    Submitted batch job 7067583
+    Jobs submitted, please wait for a few hours
+    --- 8. Running (missing output): /nfs/home2/minhle/newlogic/././output/ablation-mnist-results3.json <- /nfs/home2/minhle/newlogic/././output/ablation-mnist-models
+    Submitted batch job 7067584
+
+
+
+
 

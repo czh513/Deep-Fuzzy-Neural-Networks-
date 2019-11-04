@@ -23,7 +23,7 @@ log_strength_stop = 1
 class ReLog(nn.Module):
     r"""Applies the rectified log unit function element-wise:
 
-    :math:`\text{ReLog}(x)= \log (\max(0, x) + 1)`
+    :math:`\text{ReLog}(x)= \log (\beta \max(0, x) + 1) / \beta`
 
     Shape:
         - Input: :math:`(N, *)` where `*` means, any number of additional
@@ -32,24 +32,22 @@ class ReLog(nn.Module):
     """
     __constants__ = []
 
-    def __init__(self, n=10, inplace=False):
+    def __init__(self, beta=10):
         assert(n > 1)
         super(ReLog, self).__init__()
-        self.n = n
-        self.inplace = inplace
+        self.beta = beta
         self.log_strength = log_strength_start
 
     def forward(self, input):
         if self.training and not freeze_hyperparams:
             self.log_strength = min(log_strength_stop, self.log_strength + log_strength_inc)
-        beta = max(1e-4, self.log_strength) # effective log strength
-        relog_func = lambda x: torch.log(F.relu(x)*beta + 1) / beta
+        b = self.beta * max(1e-4, self.log_strength) # effective log strength
+        relog_func = lambda x: torch.log1p(b*F.relu(x)) / b
         return relog_func(input)
 
     def extra_repr(self):
-        return 'n=%.2f' % (self.n)
+        return 'beta=%.2f' % (self.beta)
 
-# if you want a gradual ramping up, change this
 # put it to negative if you want to start after some epochs
 curvature_multiplier_start = 0
 curvature_multiplier_inc = 0.001
@@ -190,7 +188,7 @@ class ExperimentalModel(nn.Module):
         return module
 
     def activation_func(self, layer_no=None):
-        return (ReLog(self.conf['relog_n'], inplace=True) if self.conf['use_relog']
+        return (ReLog(self.conf['relog_beta'], inplace=True) if self.conf['use_relog']
                 else nn.ReLU(inplace=True))
 
     def wrap_linear(self, linear, activ=True, layer_no=None):
@@ -220,7 +218,7 @@ class ExperimentalModel(nn.Module):
 class CNN(ExperimentalModel):
 
     config_defaults = {
-        'use_relog': False, 'relog_n': 10,
+        'use_relog': False, 'relog_beta': 2,
         'use_maxout': '', 'max_folding_factor': 4, 'min_folding_factor': 2,
         'conv1_out_channels': 16, 'conv2_out_channels': 32,
         'use_elliptical': False, 'use_quadratic': False, 'use_batchnorm': False,
@@ -266,7 +264,7 @@ cfg = {
 class VGG(ExperimentalModel):
 
     config_defaults = {
-        'use_relog': False, 'relog_n': 5, 'modification_start_layer': 0, 
+        'use_relog': False, 'relog_beta': 1, 'modification_start_layer': 0, 
         'use_maxout': '', 'max_folding_factor': 4, 'min_folding_factor': 2,
         'use_elliptical': False, 'use_quadratic': False, 'use_batchnorm': False,
         'vgg_name': 'VGG16', 'capacity_factor': 1

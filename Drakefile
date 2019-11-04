@@ -28,7 +28,7 @@ output/subtractive-ablation-mnist-models <- train.py [-timecheck]
     echo "Jobs submitted, please wait for a few hours"
 
 output/ablation-mnist-results.json <- output/ablation-mnist-models
-    # sbatch scripts/attack-mnist-ablation.job $INPUT0 $OUTPUT0 # GPU
+    sbatch scripts/attack-mnist-ablation.job $INPUT0 $OUTPUT0 # GPU
     echo "Jobs submitted, please wait for a few hours"
 
 output/ablation-mnist-results2.json <- output/ablation-mnist-models
@@ -45,13 +45,13 @@ output/ablation-mnist-results-spsa.json <- output/ablation-mnist-models
 output/ablation-cifar10-results.json <- output/ablation-cifar10-models
     rm $OUTPUT0
     sbatch scripts/attack-cifar10-ablation.job $INPUT0 $OUTPUT0 
-    sbatch scripts/attack-cifar10-ablation-spsa.job $INPUT0 $OUTPUT0 
+    #sbatch scripts/attack-cifar10-ablation-spsa.job $INPUT0 $OUTPUT0 
     echo "Jobs submitted, please wait for a few hours"
 
 output/ablation-cifar10-results2.json <- output/ablation-cifar10-models2
     rm $OUTPUT0
     sbatch scripts/attack-cifar10-ablation.job $INPUT0 $OUTPUT0
-    sbatch scripts/attack-cifar10-ablation-spsa.job $INPUT0 $OUTPUT0
+    #sbatch scripts/attack-cifar10-ablation-spsa.job $INPUT0 $OUTPUT0
     echo "Jobs submitted, please wait for a few hours"
 
 output/natural-mnist-results.json <- output/ablation-mnist-models

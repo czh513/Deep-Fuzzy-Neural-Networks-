@@ -18,6 +18,7 @@ execute_attack() {
 
 for model_path in $(ls $inp_dir/*.pkl)
 do
+    # parallel across attacks
     execute_attack BIM $model_path &
     execute_attack CW $model_path &
     execute_attack FGM_inf $model_path &
