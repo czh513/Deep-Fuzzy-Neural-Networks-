@@ -1,0 +1,20 @@
+#!/bin/bash
+#SBATCH -t 3-00:00:00
+#SBATCH -p gpu
+#SBATCH --export=NONE
+
+. scripts/init-cartesius.sh
+. venv/bin/activate
+
+inp_dir=$1
+out_path=$2
+
+for model_name in relog-elliptical-maxout_4-max_fit_l1_02 relog-elliptical-maxout_4-max_fit_l1_0001 relog-elliptical-maxout_4-max_fit_l1_001 relog-elliptical-maxout_4-max_fit_l1_03 relog-elliptical-maxout_4-max_fit_l1_002 relog-elliptical-maxout_4-max_fit_l1_05
+do
+    model_path=$inp_dir/$model_name.pkl
+    for attack in FGM_inf FGM_L2 CW BIM
+    do
+        python -u adversarial.py --dataset=mnist --attack=$attack \
+                --model_path=$model_path --json_out_path=$out_path
+    done
+done

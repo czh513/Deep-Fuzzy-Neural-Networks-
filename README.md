@@ -9,12 +9,14 @@ scripts and adapt them to your computing environment.
 ## MNIST experiments
 
 1. Train models: `drake %mnist-models`
-2. Evaluate models: `drake %mnist-results`
+2. Wait until all jobs finish and run evaluation: `drake %mnist-results`
+3. Continue at "Figures and tables" section
 
 ## CIFAR-10 experiments
 
 1. Train models: `drake %cifar10-models`
-2. Evaluate models: `drake %cifar10-results`
+2. Wait until all jobs finish and run evaluation: `drake %cifar10-results`
+3. Continue at "Figures and tables" section
 
 ## Figures and tables in the paper
 

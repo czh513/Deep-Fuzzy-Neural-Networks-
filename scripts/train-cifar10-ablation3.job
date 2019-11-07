@@ -19,6 +19,7 @@ train() {
 }
 
 . scripts/cifar10-common.sh
+maxfit_conf="--regularization=max-fit --l1=0.05 --bias_l1=0.1 --regularization_start_epoch=52" # otherwise, training would collapse
 
 train relog-maxout-elliptical-max_fit_l1-mse --device=cuda:0 $relog_conf $elliptical_conf $maxout_conf $maxfit_conf $mse_conf &
 train relog-maxout-elliptical-max_fit_l1-mse-overlay --device=cuda:1 $relog_conf $elliptical_conf $maxout_conf $maxfit_conf $mse_conf --use_overlay=True &

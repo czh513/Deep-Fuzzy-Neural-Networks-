@@ -21,8 +21,10 @@ def gaussian_noise(epsilon):
 def param_mean(vals):
     ''' This method takes one mean per layer (assuming each tensor comes from one layer) and then sum them together. 
     The rationale is that the scale of regularization signal shouldn't be dependent on the depth of the network. '''
-    vals = [val.mean() for val in vals]
-    return sum(vals)
+    return sum(val.mean() for val in vals)
+    # alternative formula
+    # return sum((val.mean(dim=1) if val.ndim == 2 else val).sum() 
+    #            for val in vals)
 
 class WeightedMSELoss(object):
 
@@ -333,6 +335,8 @@ class TrainingService_CIFAR10(TrainingService):
                 if conf['regularization'] and epoch >= conf['regularization_start_epoch']:
                     print("Training might have collapsed because of excessive regularization, "
                           "please adjust hyperparams, aborting...")
+                    if conf['out_path'] and os.path.exists(conf['out_path']):
+                        net = torch.load(conf['out_path']) # recover
                     break
                 else: # attempt recovery
                     if conf['out_path'] and os.path.exists(conf['out_path']):

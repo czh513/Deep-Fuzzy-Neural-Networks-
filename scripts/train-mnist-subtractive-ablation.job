@@ -31,4 +31,19 @@ train() {
 
 wait
 
+(train relu-elliptical --device=cuda:0 --use_elliptical=True ; \
+ train relu-max_fit_l1 --device=cuda:0 --regularization=max-fit --bias_l1=1 --l1=1) &
+(train relu-minmaxout --device=cuda:1 --use_maxout=minmax --max_folding_factor=4 --min_folding_factor=2 ; \
+ train relu-maxout --device=cuda:1 --use_maxout=max --max_folding_factor=4) &
+wait
+
+train relog-elliptical-max_fit_l1 --device=cuda:0 --use_relog=True --use_elliptical=True --regularization=max-fit --bias_l1=0.1 --l1=0.1 &
+train relu-elliptical-max_fit_l1 --device=cuda:1 --use_elliptical=True --regularization=max-fit --bias_l1=0.1 --l1=0.1 &
+wait
+
+train relu-elliptical-max_fit-maxout --device=cuda:0 --use_elliptical=True --regularization=max-fit --bias_l1=0.1 --l1=0.1 --use_maxout=max --max_folding_factor=4 &
+train relu-elliptical-maxout --device=cuda:1 --use_elliptical=True --use_maxout=max --max_folding_factor=4 &
+wait
+
+
 echo -n "Finished: " && date

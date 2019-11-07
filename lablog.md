@@ -1260,7 +1260,49 @@ Rerunning MNIST models evaluation:
     --- 8. Running (missing output): /nfs/home2/minhle/newlogic/././output/ablation-mnist-results3.json <- /nfs/home2/minhle/newlogic/././output/ablation-mnist-models
     Submitted batch job 7067584
 
+The set of logs, models, etc. have become too confusing... I'll start over
+with a new `output` directory. Starting over:
 
+    commit 192f3d5118f82982c7ae6e2561b6a4a1726a205a
 
+    [minhle@int2 newlogic]$ drake +=output/ablation-mnist-models +=output/subtractive-ablation-mnist-models
+    --- 2. Running (forced): /nfs/home2/minhle/newlogic/././output/ablation-mnist-models <- /nfs/home2/minhle/newlogic/././train.py
+    Submitted batch job 7071248
+    Submitted batch job 7071249
+    --- 3. Running (forced): /nfs/home2/minhle/newlogic/././output/subtractive-ablation-mnist-models <- /nfs/home2/minhle/newlogic/././train.py
+    Submitted batch job 7071250
 
+Done training, now evaluating...
 
+Waiting for some slower attacks to finish, waiting for training of some new MNIST models for
+the notebook `reporting/distributed-vs-local.ipynb`.
+
+# Tue 5 Nov
+
+All attacks on MNIST has finished, there's some surprising results on +maxfit model which I suspect
+due to improper tuning. I'll try a few other values and report all of them.
+
+Submitted jobs to train CIFAR-10 models, waiting in queue now...
+Submitted another job to evaluate MNIST models of different 
+maxfit strength.
+
+# Wed 6 Nov
+
+Started evaluating some CIFAR-10 models:
+
+    [minhle@int2 newlogic]$ drake output/ablation-cifar10-results.json
+    --- 11. Running (missing output): /nfs/home2/minhle/newlogic/././output/ablation-cifar10-results.json <- /nfs/home2/minhle/newlogic/././output/ablation-cifar10-models
+    Submitted batch job 7090566
+    Jobs submitted, please wait for a few hours
+
+MSE training (CIFAR) failed and recovery was missing, fixed the bug, retraining:
+
+    [minhle@int2 newlogic]$ drake +=output/ablation-cifar10-models2
+    --- 1: /nfs/home2/minhle/newlogic/././output/ablation-cifar10-models2 <- /nfs/home2/minhle/newlogic/././train.py -> done in 0.17s
+    Done (1 steps run).
+    [minhle@int2 newlogic]$ tail slurm-7092652.out
+    Started: Thu Nov  7 03:07:02 CET 2019
+    Training relog-maxout-elliptical-max_fit_l1-mse
+    Training relog-maxout-elliptical-max_fit_l1-mse-overlay
+
+Added a lot to the paper...

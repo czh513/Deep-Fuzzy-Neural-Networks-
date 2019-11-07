@@ -21,10 +21,10 @@ train() {
 elliptical_conf=" --use_elliptical --curvature_multiplier_start=0.5 --curvature_multiplier_stop=0.5 --curvature_multiplier_inc=0"
 relog_conf="--use_relog=True --log_strength_start=-1 --log_strength_inc=0.001"
 maxout_conf="--use_maxout=max --max_folding_factor=4 --n_epochs=40"
-regularization_conf="--regularization=max-fit --l1=1 --bias_l1=0.5 --regularization_start_epoch=5 --n_epochs=40"
-# train debugging-relog-elliptical-maxout-fast_training --device=cuda:0 $elliptical_conf $relog_conf $maxout_conf &
-# train debugging-relog-elliptical-maxout-maxfit_l1-fast_training --device=cuda:1 $elliptical_conf $relog_conf $maxout_conf $regularization_conf &
-# wait
+regularization_conf="--regularization=max-fit --l1=0.001 --bias_l1=0.0001 --regularization_start_epoch=2 --n_epochs=40"
+train debugging-relog-elliptical-maxout-fast_training --device=cuda:0 $elliptical_conf $relog_conf $maxout_conf &
+train debugging-relog-elliptical-maxout-maxfit_l1-fast_training --device=cuda:1 $elliptical_conf $relog_conf $maxout_conf $regularization_conf &
+wait
 
 # successful training sessions:
 # train debugging-relu --device=cuda:0 &
@@ -35,7 +35,7 @@ regularization_conf="--regularization=max-fit --l1=1 --bias_l1=0.5 --regularizat
 # nearly successful training sessions:
 # train debugging-relog-elliptical-maxout --device=cuda:0 --use_elliptical --curvature_multiplier_start=-0.5 --curvature_multiplier_stop=1 --use_relog=True --log_strength_start=-1 --log_strength_inc=0.0001 --use_maxout=max --max_folding_factor=4 --n_epochs=80 &
 # train debugging-relog-elliptical-maxout-maxfit_l1 --device=cuda:1 --use_elliptical --curvature_multiplier_start=-0.5 --curvature_multiplier_stop=1 --use_relog=True --log_strength_start=-1 --log_strength_inc=0.0001 --use_maxout=max --max_folding_factor=4 --regularization=max-fit --l1=1 --bias_l1=1 --regularization_start_epoch=52 --n_epochs=80 &
-# wait
+wait
 
 execute_attack() {
     third_param_onwards="${@:3}"
@@ -44,13 +44,13 @@ execute_attack() {
             --report_interval=5 --model_device=cpu # using CPUs to avoid OOM on a GPU
 }
 
-for model_path in output/ablation-cifar10-models2/relog-elliptical-maxout-maxfit_l1.pkl
-do
-    # execute_attack BIM $model_path --num_batches=10 &
-    # execute_attack CW $model_path --num_batches=10 &
-    execute_attack FGM_inf $model_path --num_batches=20 &
-    execute_attack FGM_L2 $model_path --num_batches=20 &
-    wait
-done
+# for model_path in output/ablation-cifar10-models2/relog-elliptical-maxout-maxfit_l1.pkl
+# do
+#     # execute_attack BIM $model_path --num_batches=10 &
+#     # execute_attack CW $model_path --num_batches=10 &
+#     execute_attack FGM_inf $model_path --num_batches=20 &
+#     execute_attack FGM_L2 $model_path --num_batches=20 &
+#     wait
+# done
 
 echo -n "Finished: " && date
