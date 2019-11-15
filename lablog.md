@@ -1306,3 +1306,22 @@ MSE training (CIFAR) failed and recovery was missing, fixed the bug, retraining:
     Training relog-maxout-elliptical-max_fit_l1-mse-overlay
 
 Added a lot to the paper...
+
+# Tue 12 Nov
+
+Figured out a way to send files to my email (in case I have to access the server via a gate node
+which makes scp/rsync impossible):
+
+    echo "this is results for cifar-10 experiments" | mail -s "CIFAR-10 results" -a output/ablation-cifar10-results.json <email>
+
+Started evaluating newest CIFAR-10 models:
+
+    [minhle@int2 newlogic]$ drake +=output/ablation-cifar10-results2.json
+    --- 12. Running (forced): /nfs/home2/minhle/newlogic/././output/ablation-cifar10-results2.json <- /nfs/home2/minhle/newlogic/././output/ablation-cifar10-models2
+    Submitted batch job 7136791
+    Jobs submitted, please wait for a few hours
+
+# Fri 15 Nov
+
+A hopothesis: maybe elliptical units are only good in the first few layers 
+because the input distribution is somewhat Gaussian.

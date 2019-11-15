@@ -167,8 +167,10 @@ class ExperimentalModel(nn.Module):
                 weights.append(layer._quadratic.weight)
         return weights
                 
-    def dense(self, *args, **kwargs):
-        if self.conf['use_elliptical']:
+    def dense(self, layer_no, *args, **kwargs):
+        if (self.conf['use_elliptical'] and 
+            (self.conf['elliptical_stop'] < 0 or
+             layer_no < self.conf['elliptical_stop'])):
             f = Elliptical
         elif self.conf['use_quadratic']:
             f = Quadratic
@@ -177,8 +179,10 @@ class ExperimentalModel(nn.Module):
         module = f(*args, **kwargs)
         return module
 
-    def conv(self, *args, **kwargs):
-        if self.conf['use_elliptical']:
+    def conv(self, layer_no, *args, **kwargs):
+        if (self.conf['use_elliptical'] and 
+            (self.conf['elliptical_stop'] < 0 or
+             layer_no < self.conf['elliptical_stop'])):
             f = EllipticalCNN
         elif self.conf['use_quadratic']:
             f = QuadraticCNN
@@ -194,13 +198,20 @@ class ExperimentalModel(nn.Module):
     def wrap_linear(self, linear, activ=True, layer_no=None):
         assert not isinstance(linear, list)
         modules = [linear]
-        if self.conf['use_maxout'] == 'max':
+        use_maxout = self.conf['use_maxout']
+        elliptical_active = (self.conf['use_elliptical'] and 
+            (self.conf['elliptical_stop'] < 0 or layer_no is None or
+            layer_no < self.conf['elliptical_stop']))
+        if elliptical_active:
+            # elliptical and minout can't go together, disabling minout here
+            use_maxout = use_maxout.replace('min', '')
+        if use_maxout == 'max':
             maxout = FoldingMaxout(self.conf['folding_factor'], dim=1)
             modules.append(maxout)                
-        elif self.conf['use_maxout'] == 'min':
+        elif use_maxout == 'min':
             minout = FoldingMaxout(self.conf['folding_factor'], dim=1, use_min=True)
-            modules.append(minout)                
-        elif self.conf['use_maxout'] == 'minmax':
+            modules.append(minout)
+        elif use_maxout == 'minmax':
             minout = FoldingMaxout(self.conf['min_folding_factor'], dim=1, use_min=True)
             maxout = FoldingMaxout(self.conf['max_folding_factor'], dim=1)
             modules.extend([minout, maxout])
@@ -229,7 +240,7 @@ class CNN(ExperimentalModel):
         self.n_classes = 10
         # first CNN
         actual_out_channels = self.conf['conv1_out_channels'] * self.conf['folding_factor']
-        cnn1 = self.conv(
+        cnn1 = self.conv(layer_no=0,
             in_channels=1,
             out_channels=actual_out_channels,
             kernel_size=5,              # filter size
@@ -239,10 +250,15 @@ class CNN(ExperimentalModel):
         # second CNN
         actual_input_channels = self.conf['conv1_out_channels']
         actual_out_channels = self.conf['conv2_out_channels'] * self.conf['folding_factor']
-        cnn2 = self.conv(actual_input_channels, actual_out_channels, 5, stride=1, padding=2)
+        cnn2 = self.conv(layer_no=1, 
+            in_channels=actual_input_channels, 
+            out_channels=actual_out_channels, 
+            kernel_size=5, 
+            stride=1, 
+            padding=2)
         # output
         actual_input_channels = self.conf['conv2_out_channels'] * 7 * 7
-        out = self.dense(actual_input_channels, self.n_classes * self.conf['folding_factor'])
+        out = self.dense(2, actual_input_channels, self.n_classes * self.conf['folding_factor'])
         self.extract_weights_and_bias([cnn1, cnn2, out])
 
         self.features = nn.Sequential(*(
@@ -266,16 +282,17 @@ class VGG(ExperimentalModel):
     config_defaults = {
         'use_relog': False, 'relog_beta': 1, 'modification_start_layer': 0, 
         'use_maxout': '', 'max_folding_factor': 4, 'min_folding_factor': 2,
-        'use_elliptical': False, 'use_quadratic': False, 'use_batchnorm': False,
-        'vgg_name': 'VGG16', 'capacity_factor': 1
+        'use_elliptical': False, 'elliptical_stop': -1, 'use_quadratic': False, 
+        'use_batchnorm': False, 'vgg_name': 'VGG16', 'capacity_factor': 1
     }
 
     def __init__(self, vgg_name="VGG11", **kwargs):
         super(VGG, self).__init__(**kwargs)
         self.n_classes = 10
         self.features, conv_layers, last_layer_size = self._make_layers(cfg[vgg_name])
-        classifier = self.dense(last_layer_size, 10 * self.conf['folding_factor'])
-        self.classifier = nn.Sequential(*self.wrap_linear(classifier, activ=False))
+        layer_no = len(cfg[vgg_name])
+        classifier = self.dense(layer_no, last_layer_size, 10 * self.conf['folding_factor'])
+        self.classifier = nn.Sequential(*self.wrap_linear(classifier, activ=False, layer_no=layer_no))
         self.extract_weights_and_bias(conv_layers + [classifier])
 
     def _make_layers(self, cfg):
@@ -287,7 +304,7 @@ class VGG(ExperimentalModel):
             elif isinstance(x, int):
                 if layer_no >= self.conf['modification_start_layer']:
                     x = int(x*self.conf['capacity_factor'])
-                    conv = self.conv(in_channels, x * self.conf['folding_factor'], kernel_size=3, padding=1)
+                    conv = self.conv(layer_no, in_channels, x * self.conf['folding_factor'], kernel_size=3, padding=1)
                     layers += self.wrap_linear(conv, layer_no=layer_no)
                 else:
                     conv = nn.Conv2d(in_channels, x, kernel_size=3, padding=1)

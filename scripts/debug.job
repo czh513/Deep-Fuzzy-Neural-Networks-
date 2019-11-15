@@ -14,16 +14,16 @@ train() {
     name=$1
     second_param_onwards="${@:2}"
     echo "Training $name"
-    python -u train.py cifar-10 --vgg_name='VGG4' --use_batchnorm=True --modification_start_layer=0 --out_path=output/debug/$name.pkl $second_param_onwards &> output/debug/$name.log
+    python -u train.py cifar-10 --vgg_name='VGG4' --use_batchnorm=False --modification_start_layer=0 --n_epochs=40 --out_path=output/debug/$name.pkl $second_param_onwards &> output/debug/$name.log
 }
 
 # trying faster training
-elliptical_conf=" --use_elliptical --curvature_multiplier_start=0.5 --curvature_multiplier_stop=0.5 --curvature_multiplier_inc=0"
+elliptical_conf="--use_elliptical=True --elliptical_stop=1 --curvature_multiplier_start=0.5 --curvature_multiplier_stop=1 --curvature_multiplier_inc=0.001"
 relog_conf="--use_relog=True --log_strength_start=-1 --log_strength_inc=0.001"
-maxout_conf="--use_maxout=max --max_folding_factor=4 --n_epochs=40"
-regularization_conf="--regularization=max-fit --l1=0.001 --bias_l1=0.0001 --regularization_start_epoch=2 --n_epochs=40"
-train debugging-relog-elliptical-maxout-fast_training --device=cuda:0 $elliptical_conf $relog_conf $maxout_conf &
-train debugging-relog-elliptical-maxout-maxfit_l1-fast_training --device=cuda:1 $elliptical_conf $relog_conf $maxout_conf $regularization_conf &
+maxout_conf="--use_maxout=minmax --min_folding_factor=2 --max_folding_factor=4"
+regularization_conf="--regularization=max-fit --l1=0.001 --bias_l1=0.0001 --regularization_start_epoch=2"
+train debugging-relog-elliptical-maxout-fast_training-no_batchnorm --device=cuda:0 $elliptical_conf $relog_conf $maxout_conf &
+train debugging-relog-elliptical-maxout-maxfit_l1-fast_training-no_batchnorm --device=cuda:1 $elliptical_conf $relog_conf $maxout_conf $regularization_conf &
 wait
 
 # successful training sessions:
