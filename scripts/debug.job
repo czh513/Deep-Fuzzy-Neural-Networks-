@@ -18,13 +18,13 @@ train() {
 }
 
 # trying faster training
-elliptical_conf="--use_elliptical=True --elliptical_stop=1 --curvature_multiplier_start=0.5 --curvature_multiplier_stop=1 --curvature_multiplier_inc=0.001"
-relog_conf="--use_relog=True --log_strength_start=-1 --log_strength_inc=0.001"
-maxout_conf="--use_maxout=minmax --min_folding_factor=2 --max_folding_factor=4"
-regularization_conf="--regularization=max-fit --l1=0.001 --bias_l1=0.0001 --regularization_start_epoch=2"
-train debugging-relog-elliptical-maxout-fast_training-no_batchnorm --device=cuda:0 $elliptical_conf $relog_conf $maxout_conf &
-train debugging-relog-elliptical-maxout-maxfit_l1-fast_training-no_batchnorm --device=cuda:1 $elliptical_conf $relog_conf $maxout_conf $regularization_conf &
-wait
+# elliptical_conf="--use_elliptical=True --elliptical_stop=1 --curvature_multiplier_start=0.5 --curvature_multiplier_stop=1 --curvature_multiplier_inc=0.001"
+# relog_conf="--use_relog=True --log_strength_start=-1 --log_strength_inc=0.001"
+# maxout_conf="--use_maxout=minmax --min_folding_factor=2 --max_folding_factor=4"
+# regularization_conf="--regularization=max-fit --l1=0.001 --bias_l1=0.0001 --regularization_start_epoch=2"
+# train debugging-relog-elliptical-maxout-fast_training-no_batchnorm --device=cuda:0 $elliptical_conf $relog_conf $maxout_conf &
+# train debugging-relog-elliptical-maxout-maxfit_l1-fast_training-no_batchnorm --device=cuda:1 $elliptical_conf $relog_conf $maxout_conf $regularization_conf &
+# wait
 
 # successful training sessions:
 # train debugging-relu --device=cuda:0 &
@@ -44,13 +44,13 @@ execute_attack() {
             --report_interval=5 --model_device=cpu # using CPUs to avoid OOM on a GPU
 }
 
-# for model_path in output/ablation-cifar10-models2/relog-elliptical-maxout-maxfit_l1.pkl
-# do
-#     # execute_attack BIM $model_path --num_batches=10 &
-#     # execute_attack CW $model_path --num_batches=10 &
-#     execute_attack FGM_inf $model_path --num_batches=20 &
-#     execute_attack FGM_L2 $model_path --num_batches=20 &
-#     wait
-# done
+for model_path in output/ablation-cifar10-models4/relog-minmaxout-elliptical_stop1-maxfit.pkl
+do
+    # execute_attack BIM $model_path --num_batches=10 &
+    # execute_attack CW $model_path --num_batches=10 &
+    execute_attack FGM_inf $model_path --num_batches=20 &
+    execute_attack FGM_L2 $model_path --num_batches=20 &
+    wait
+done
 
 echo -n "Finished: " && date

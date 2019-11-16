@@ -1325,3 +1325,17 @@ Started evaluating newest CIFAR-10 models:
 
 A hopothesis: maybe elliptical units are only good in the first few layers 
 because the input distribution is somewhat Gaussian.
+
+Training some new models...
+
+# Sat 16 Nov
+
+Working on "related work" section, results start coming in...
+
+Examined maxfit training: the regularization loss decreases at a stable speed,
+suggesting that the boundary is not tight yet. Perhaps I start regularization
+too late (epoch 52, because of difficulty in training in some previous version
+of the code) or regularization is still too weak.
+
+Updated the script to start regularization since the very first epoch.
+Retraining a few models.

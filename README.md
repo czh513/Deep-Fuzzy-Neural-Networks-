@@ -8,6 +8,7 @@ scripts and adapt them to your computing environment.
 
 ## MNIST experiments
 
+0. Code version: `192f3d5118f82982c7ae6e2561b6a4a1726a205a`
 1. Train models: `drake %mnist-models`
 2. Wait until all jobs finish and run evaluation: `drake %mnist-results`
 3. Continue at "Figures and tables" section
