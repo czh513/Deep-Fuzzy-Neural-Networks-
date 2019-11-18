@@ -15,11 +15,12 @@ scripts and adapt them to your computing environment.
 
 ## CIFAR-10 experiments
 
+0. Code version: `3a5c7896ffa925f733ba107188e9df08b3b5fc6d` (later versions will work differently)
 1. Train models: `drake %cifar10-models`
 2. Wait until all jobs finish and run evaluation: `drake %cifar10-results`
 3. Continue at "Figures and tables" section
 
-## Figures and tables in the paper
+## Numbers, figures and tables in the paper
 
 1. ReLog activation function figure: `reporting/activation-functions.ipynb`
 2. Pattern fitting figure (two-dot problem): `reporting/two-dots.ipynb`
@@ -27,3 +28,4 @@ scripts and adapt them to your computing environment.
 4. Negative examples figure: `reporting/overlay.ipynb`
 5. Activation on noise: `reporting/distributed-vs-local.ipynb`
 6. MNIST and CIFAR-10 result tables: `reporting/results-table.ipynb`
+7. Curvature statistics in Section 4.1: `reporting/curvature.ipynb`

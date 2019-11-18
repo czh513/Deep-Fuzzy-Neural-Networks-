@@ -1347,3 +1347,10 @@ the number of dead neurons increases very fast. There ought to be a method
 to restrict receptive field that's not elliptical but stronger than minout.
 
 Adjusted some hyperparams, retraining a few models. It sucks that the work has been dragging on for so long...
+
+# Sun 17 Nov
+
+Yep, shit hits the fan. I found out a bug in the calcualtion of fan-in.
+Retraining a few models now, I won't update the result table because that
+would take a few more days and I have a real deadline to chase. But I will
+update the discussions.
