@@ -76,12 +76,9 @@ class TrainingService(object):
                 if conf['l2'] > 0:
                     reg_loss += conf['l2'] * param_mean(w*w for w in cnn.weights)
             if conf['regularization'] == 'max-fit':
-                assert (conf['bias_l1'] > 0) or (conf['bias_l2'] > 0), \
+                assert (conf['bias_l1'] > 0), \
                     "For max-fit, strength of bias regularization must be specified"
-                if conf['bias_l1'] > 0:
-                    reg_loss += conf['bias_l1'] * param_mean(b for b in cnn.bias) # notice: no abs()
-                if conf['bias_l2'] > 0:
-                    reg_loss += conf['bias_l2'] * param_mean(b*b.abs() for b in cnn.bias) # notice: signed
+                reg_loss += conf['bias_l1'] * param_mean(b for b in cnn.bias) # notice: no abs()
 
         loss = main_loss + reg_loss + neg_training_loss
         return loss, main_loss, reg_loss, neg_training_loss
@@ -129,7 +126,7 @@ class TrainingService_MNIST(TrainingService):
         config_defaults = {
             'use_mse': False, 'lr': 0.001, 'out_path': None, 'train_batch_size': 64, 
             'regularization': None, 'regularization_start_epoch': 2, 'l1': 0, 'l2': 0, 
-            'bias_l1': 0, 'bias_l2': 0, 'use_scrambling': False, 'use_overlay': False,
+            'bias_l1': 0, 'use_scrambling': False, 'use_overlay': False,
             'use_elliptical': False, 'use_quadratic': False, 'mse_weighted': False,
         }
 
@@ -296,7 +293,7 @@ class TrainingService_CIFAR10(TrainingService):
         config_defaults = {
             'use_mse': False, 'lr': 0.01, 'out_path': None, 'train_batch_size': 128, 
             'regularization': None, 'regularization_start_epoch': 10, 'l1': 0, 'l2': 0,
-            'bias_l1': 0, 'bias_l2': 0, 'use_scrambling': False, 'use_overlay': False,
+            'bias_l1': 0, 'use_scrambling': False, 'use_overlay': False,
             'use_elliptical': False, 'use_quadratic': False, 
             'log_strength_inc': 0.001, 'log_strength_start': 0.001, 'log_strength_stop': 1,
             'batch_size_multiplier': 1, 'report_interval': 150,

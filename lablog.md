@@ -1338,4 +1338,12 @@ too late (epoch 52, because of difficulty in training in some previous version
 of the code) or regularization is still too weak.
 
 Updated the script to start regularization since the very first epoch.
-Retraining a few models.
+Another potential problem is the pressure on bias
+is too much higher than that on weights, creating strongly negative bias 
+and big-magnitude weights which might be more sensitive to adversarial examples.
+
+A problem with minout is that it's hard to increase _k_ to more than 2 because
+the number of dead neurons increases very fast. There ought to be a method
+to restrict receptive field that's not elliptical but stronger than minout.
+
+Adjusted some hyperparams, retraining a few models. It sucks that the work has been dragging on for so long...
