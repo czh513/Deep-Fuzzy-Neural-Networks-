@@ -1312,7 +1312,7 @@ Added a lot to the paper...
 Figured out a way to send files to my email (in case I have to access the server via a gate node
 which makes scp/rsync impossible):
 
-    echo "this is results for cifar-10 experiments" | mail -s "CIFAR-10 results" -a output/ablation-cifar10-results.json <email>
+    echo "this is results for cifar-10 experiments" | mail -s "CIFAR-10 results" -a output/ablation-cifar10-results.json minhle.r7@protonmail.com
 
 Started evaluating newest CIFAR-10 models:
 
@@ -1354,3 +1354,5 @@ Yep, shit hits the fan. I found out a bug in the calcualtion of fan-in.
 Retraining a few models now, I won't update the result table because that
 would take a few more days and I have a real deadline to chase. But I will
 update the discussions.
+
+Training is as unstable as before, so nothing changes.
