@@ -19,31 +19,26 @@ train() {
 
 # don't use "\" to put parameters on the next line, the method will ignore them...
 
-(train relog-elliptical-maxout_4-mse-overlay --device=cuda:0 --use_relog=True --use_elliptical=True --use_mse=True --use_maxout=max --max_folding_factor=4 --use_overlay=True; \
- train relog-elliptical-mse-max_fit_l1-overlay --device=cuda:0 --use_relog=True --use_elliptical=True --use_mse=True --regularization=max-fit --bias_l1=1 --l1=1 --use_overlay=True ; \
- train relu-mse-overlay --device=cuda:0 --use_mse=True --use_overlay=True ; \
- train relu-mse --device=cuda:0 --use_mse=True) &
+(train relog-elliptical-maxout_4-bce-overlay --device=cuda:0 --use_relog=True --use_elliptical=True --use_bce=True --use_maxout=max --max_folding_factor=4 --use_overlay=True; \
+ train relog-elliptical-bce-max_fit_l1-overlay --device=cuda:0 --use_relog=True --use_elliptical=True --use_bce=True --regularization=max-fit --bias_l1=1 --l1=1 --use_overlay=True ; \
+ train relu-bce-overlay --device=cuda:0 --use_bce=True --use_overlay=True ; \
+ train relu-bce --device=cuda:0 --use_bce=True) &
 
-(train relog-maxout_4-mse-max_fit_l1-overlay --device=cuda:1 --use_relog=True --use_mse=True --use_maxout=max --max_folding_factor=4 --regularization=max-fit --bias_l1=1 --l1=1 --use_overlay=True ; \
- train relu-elliptical-maxout_4-mse-max_fit_l1-overlay --device=cuda:1 --use_elliptical=True --use_mse=True --use_maxout=max --max_folding_factor=4 --regularization=max-fit --bias_l1=1 --l1=1 --use_overlay=True ; \
- train relu-maxout_4-mse-max_fit_l1-overlay --device=cuda:1 --use_mse=True --use_maxout=max --max_folding_factor=4 --regularization=max-fit --bias_l1=1 --l1=1 --use_overlay=True ; \
- train relu-elliptical-mse-max_fit_l1-overlay --device=cuda:1 --use_elliptical=True --use_mse=True --regularization=max-fit --bias_l1=1 --l1=1 --use_overlay=True) &
+(train relog-maxout_4-bce-max_fit_l1-overlay --device=cuda:1 --use_relog=True --use_bce=True --use_maxout=max --max_folding_factor=4 --regularization=max-fit --bias_l1=1 --l1=1 --use_overlay=True ; \
+ train relu-elliptical-maxout_4-bce-max_fit_l1-overlay --device=cuda:1 --use_elliptical=True --use_bce=True --use_maxout=max --max_folding_factor=4 --regularization=max-fit --bias_l1=1 --l1=1 --use_overlay=True ; \
+ train relu-maxout_4-bce-max_fit_l1-overlay --device=cuda:1 --use_bce=True --use_maxout=max --max_folding_factor=4 --regularization=max-fit --bias_l1=1 --l1=1 --use_overlay=True ; \
+ train relu-elliptical-bce-max_fit_l1-overlay --device=cuda:1 --use_elliptical=True --use_bce=True --regularization=max-fit --bias_l1=1 --l1=1 --use_overlay=True) &
 
 wait
 
 (train relu-elliptical --device=cuda:0 --use_elliptical=True ; \
+ train relu-elliptical-max_fit-maxout --device=cuda:0 --use_elliptical=True --regularization=max-fit --bias_l1=0.1 --l1=0.1 --use_maxout=max --max_folding_factor=4 ; \
+ train relog-elliptical-max_fit_l1 --device=cuda:0 --use_relog=True --use_elliptical=True --regularization=max-fit --bias_l1=0.1 --l1=0.1 ; \
  train relu-max_fit_l1 --device=cuda:0 --regularization=max-fit --bias_l1=1 --l1=1) &
 (train relu-minmaxout --device=cuda:1 --use_maxout=minmax --max_folding_factor=4 --min_folding_factor=2 ; \
+ train relu-elliptical-maxout --device=cuda:1 --use_elliptical=True --use_maxout=max --max_folding_factor=4 ; \
+ train relu-elliptical-max_fit_l1 --device=cuda:1 --use_elliptical=True --regularization=max-fit --bias_l1=0.1 --l1=0.1 ; \
  train relu-maxout --device=cuda:1 --use_maxout=max --max_folding_factor=4) &
 wait
-
-train relog-elliptical-max_fit_l1 --device=cuda:0 --use_relog=True --use_elliptical=True --regularization=max-fit --bias_l1=0.1 --l1=0.1 &
-train relu-elliptical-max_fit_l1 --device=cuda:1 --use_elliptical=True --regularization=max-fit --bias_l1=0.1 --l1=0.1 &
-wait
-
-train relu-elliptical-max_fit-maxout --device=cuda:0 --use_elliptical=True --regularization=max-fit --bias_l1=0.1 --l1=0.1 --use_maxout=max --max_folding_factor=4 &
-train relu-elliptical-maxout --device=cuda:1 --use_elliptical=True --use_maxout=max --max_folding_factor=4 &
-wait
-
 
 echo -n "Finished: " && date

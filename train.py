@@ -1,7 +1,7 @@
 import os
 import torch
 import torch.nn as nn
-from torch.nn.functional import one_hot, mse_loss
+from torch.nn.functional import one_hot
 import torch.utils.data as Data
 import torchvision
 import matplotlib.pyplot as plt
@@ -54,13 +54,16 @@ class TrainingService(object):
                     loss_func = WeightedMSELoss(9, 1) # hard code for now...
             else:
                 loss_func = nn.MSELoss()
+        elif conf['use_bce']:
+            train_y = one_hot(train_y, num_classes=self.num_classes).float()
+            loss_func = nn.BCEWithLogitsLoss()
         else:
             loss_func = nn.CrossEntropyLoss()
         main_loss = loss_func(output, train_y)
 
         neg_training_loss = torch.tensor(0.0).to(self.device)
         if (conf['use_scrambling'] or conf['use_overlay']) and epoch >= 1:
-            assert conf['use_mse'], "Softmax networks can't handle all-negative input"
+            assert conf['use_mse'] or conf['use_bce'], "Softmax networks can't handle all-negative input"
             f = self.scramble if conf['use_scrambling'] else OverlayNegativeSamples()
             neg_x = f(train_x, orig_train_y).to(self.device)
             neg_y = torch.zeros(neg_x.shape[0], self.num_classes).to(self.device)
@@ -103,6 +106,7 @@ class TrainingService_MNIST(TrainingService):
     def load_data(self, gaussian_noise_epsilon):
         self.data_dir = os.path.join(self.home_dir, 'mnist')
         download_data = not(os.path.exists(self.data_dir)) or not os.listdir(self.data_dir)
+        print('Noise level:', gaussian_noise_epsilon)
         train_transform = torchvision.transforms.Compose([
             torchvision.transforms.RandomResizedCrop(size=(28, 28), scale=(0.9, 1.0)),
             torchvision.transforms.RandomRotation(degrees=10),
@@ -124,7 +128,7 @@ class TrainingService_MNIST(TrainingService):
 
     def build_and_train(self, n_epochs=20, **kwargs):
         config_defaults = {
-            'use_mse': False, 'lr': 0.001, 'out_path': None, 'train_batch_size': 64, 
+            'use_mse': False, 'use_bce': False, 'lr': 0.001, 'out_path': None, 'train_batch_size': 64, 
             'regularization': None, 'regularization_start_epoch': 2, 'l1': 0, 'l2': 0, 
             'bias_l1': 0, 'use_scrambling': False, 'use_overlay': False,
             'use_elliptical': False, 'use_quadratic': False, 'mse_weighted': False,
@@ -274,6 +278,9 @@ class TrainingService_CIFAR10(TrainingService):
                     outputs = outputs.sigmoid()
                     loss_targets = one_hot(targets, num_classes=10).float()
                     loss_func = nn.MSELoss()
+                elif conf['use_bce']:
+                    loss_targets = one_hot(targets, num_classes=10).float()
+                    loss_func = nn.BCEWithLogitsLoss()
                 else:
                     loss_targets = targets
                     loss_func = nn.CrossEntropyLoss()
@@ -291,7 +298,7 @@ class TrainingService_CIFAR10(TrainingService):
 
     def build_and_train(self, **kwargs):
         config_defaults = {
-            'use_mse': False, 'lr': 0.01, 'out_path': None, 'train_batch_size': 128, 
+            'use_mse': False, 'use_bce': False, 'lr': 0.01, 'out_path': None, 'train_batch_size': 128, 
             'regularization': None, 'regularization_start_epoch': 10, 'l1': 0, 'l2': 0,
             'bias_l1': 0, 'use_scrambling': False, 'use_overlay': False,
             'use_elliptical': False, 'use_quadratic': False, 
@@ -354,12 +361,13 @@ class TrainingService_CIFAR10(TrainingService):
                     print('Model saved to %s' % conf['out_path'])
         return net
 
-def train(dataset, device='cpu', **kwargs):
+def train(dataset, device='cpu', gaussian_noise_epsilon=0.3, **kwargs):
     if 'cuda' in device: 
         assert torch.cuda.is_available()
     print("Using device: %s" % device)
     if dataset == 'mnist':
-        ts = TrainingService_MNIST(home_dir='.', device=device)
+        ts = TrainingService_MNIST(home_dir='.', device=device,
+                gaussian_noise_epsilon=gaussian_noise_epsilon)
     elif dataset == 'cifar-10':
         ts = TrainingService_CIFAR10(home_dir='.', device=device)
     else:

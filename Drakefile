@@ -13,10 +13,16 @@ output/ablation-cifar10-models4 <- train.py [-timecheck]
     sbatch scripts/train-cifar10-ablation4.job $OUTPUT0 
     echo "Job submitted, please wait for >1 day"
 
+output/mnist-models-more-noise <- train.py [-timecheck]
+    mkdir -p $OUTPUT0
+    sbatch scripts/train-mnist-more-noise.job $OUTPUT0
+    echo "Jobs submitted, please wait for about 30 min"
+
 output/ablation-mnist-models <- train.py [-timecheck]
     mkdir -p $OUTPUT0
     sbatch scripts/train-mnist-ablation.job $OUTPUT0
     sbatch scripts/train-mnist-mse.job $OUTPUT0
+    sbatch scripts/train-mnist-bce.job $OUTPUT0
     echo "Jobs submitted, please wait for a few hours"
 
 output/subtractive-ablation-mnist-models <- train.py [-timecheck]

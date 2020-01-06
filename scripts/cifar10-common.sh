@@ -4,3 +4,4 @@ elliptical_conf="--use_elliptical=True --curvature_multiplier_start=-0.4 --curva
 maxout_conf="--use_maxout=max --max_folding_factor=4"
 maxfit_conf="--regularization=max-fit --l1=0.1 --bias_l1=0.5 --regularization_start_epoch=52"
 mse_conf="--use_mse=True --mse_weighted=False"
+bce_conf="--use_bce=True"

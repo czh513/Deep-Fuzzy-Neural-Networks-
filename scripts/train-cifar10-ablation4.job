@@ -23,19 +23,19 @@ elliptical_conf="--use_elliptical=True --elliptical_stop=1 --curvature_multiplie
 maxout_conf="--use_maxout=max --max_folding_factor=4"
 minmaxout_conf="--use_maxout=minmax --min_folding_factor=2 --max_folding_factor=4"
 maxfit_conf="--regularization=max-fit --l1=1 --bias_l1=0.1 --regularization_start_epoch=0"
-mse_conf="--use_mse=True --mse_weighted=False"
+bce_conf="--use_bce=True"
 
-# (train relog-minmaxout-elliptical_stop1 --device=cuda:0 $relog_conf $minmaxout_conf $elliptical_conf ; \
-#  train relog-minmaxout-elliptical_stop1-maxfit --device=cuda:0 $relog_conf $minmaxout_conf $elliptical_conf $maxfit_conf ;\
-#  train relog-minmaxout-elliptical_stop1-maxfit-mse --device=cuda:0 $relog_conf $minmaxout_conf $elliptical_conf $maxfit_conf $mse_conf) &
-# (train relog-maxout --device=cuda:1 $relog_conf $maxout_conf; \
-#  train relog-minmaxout --device=cuda:1 $relog_conf $minmaxout_conf; \
-#  train relog-minmaxout-elliptical_stop1-maxfit-mse-overlay --device=cuda:1 $relog_conf $minmaxout_conf $elliptical_conf $maxfit_conf $mse_conf --use_overlay=True)&
-# wait
+(train relog-minmaxout-elliptical_stop1 --device=cuda:0 $relog_conf $minmaxout_conf $elliptical_conf ; \
+ train relog-minmaxout-elliptical_stop1-maxfit --device=cuda:0 $relog_conf $minmaxout_conf $elliptical_conf $maxfit_conf ;\
+ train relog-minmaxout-elliptical_stop1-maxfit-bce --device=cuda:0 $relog_conf $minmaxout_conf $elliptical_conf $maxfit_conf $bce_conf) &
+(train relog-maxout --device=cuda:1 $relog_conf $maxout_conf; \
+ train relog-minmaxout --device=cuda:1 $relog_conf $minmaxout_conf; \
+ train relog-minmaxout-elliptical_stop1-maxfit-bce-overlay --device=cuda:1 $relog_conf $minmaxout_conf $elliptical_conf $maxfit_conf $bce_conf --use_overlay=True)&
+wait
 
 (train relog-minmaxout-elliptical_stop1-maxfit --device=cuda:0 $relog_conf $minmaxout_conf $elliptical_conf $maxfit_conf ;\
- train relog-minmaxout-elliptical_stop1-maxfit-mse --device=cuda:0 $relog_conf $minmaxout_conf $elliptical_conf $maxfit_conf $mse_conf) &
-(train relog-minmaxout-elliptical_stop1-maxfit-mse-overlay --device=cuda:1 $relog_conf $minmaxout_conf $elliptical_conf $maxfit_conf $mse_conf --use_overlay=True) &
+ train relog-minmaxout-elliptical_stop1-maxfit-bce --device=cuda:0 $relog_conf $minmaxout_conf $elliptical_conf $maxfit_conf $bce_conf) &
+(train relog-minmaxout-elliptical_stop1-maxfit-bce-overlay --device=cuda:1 $relog_conf $minmaxout_conf $elliptical_conf $maxfit_conf $bce_conf --use_overlay=True) &
 wait
 
 echo -n "Finished: " && date

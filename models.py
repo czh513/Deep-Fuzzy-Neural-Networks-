@@ -230,7 +230,7 @@ class ExperimentalModel(nn.Module):
 class CNN(ExperimentalModel):
 
     config_defaults = {
-        'use_relog': False, 'relog_beta': 2,
+        'use_relog': False, 'relog_beta': 2, 'elliptical_stop': -1,
         'use_maxout': '', 'max_folding_factor': 4, 'min_folding_factor': 2,
         'conv1_out_channels': 16, 'conv2_out_channels': 32,
         'use_elliptical': False, 'use_quadratic': False, 'use_batchnorm': False,

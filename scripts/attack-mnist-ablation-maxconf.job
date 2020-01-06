@@ -17,7 +17,7 @@ execute_attack() {
 }
 
 # for model_path in $(ls $inp_dir/*.pkl)
-for model_name in relog-elliptical-maxout_4-mse-max_fit_l1 relog-elliptical-maxout_4-mse-max_fit_l1-overlay
+for model_name in relog-elliptical-maxout_4-bce-max_fit_l1 relog-elliptical-maxout_4-bce-max_fit_l1-overlay
 do
     model_path=$inp_dir/$model_name.pkl
     execute_attack MaxConf $model_path --num_batches=25 &
