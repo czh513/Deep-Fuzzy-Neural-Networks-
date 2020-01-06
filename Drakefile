@@ -21,8 +21,8 @@ output/mnist-models-more-noise <- train.py [-timecheck]
 output/ablation-mnist-models <- train.py [-timecheck]
     mkdir -p $OUTPUT0
     sbatch scripts/train-mnist-ablation.job $OUTPUT0
-    sbatch scripts/train-mnist-mse.job $OUTPUT0
-    sbatch scripts/train-mnist-bce.job $OUTPUT0
+    # MSE: poor performance, don't use any more
+    #sbatch scripts/train-mnist-mse.job $OUTPUT0
     echo "Jobs submitted, please wait for a few hours"
 
 output/subtractive-ablation-mnist-models <- train.py [-timecheck]

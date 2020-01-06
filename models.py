@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
-from torch.nn.init import _calculate_fan_in_and_fan_out
 import math
 
 bounds = []
@@ -83,8 +82,8 @@ class Elliptical(nn.Linear):
         linear_term = super(Elliptical, self).forward(input)
         quadratic_term = self._quadratic.forward(input*input)
         a = update_curvature_multiplier(self)
-        fan_in, _ = _calculate_fan_in_and_fan_out(self.weight)
-        return -a * quadratic_term + a * math.sqrt(fan_in) + linear_term
+        gamma = 1
+        return -a * quadratic_term + a * gamma + linear_term
 
 class Quadratic(Elliptical):
 
@@ -104,8 +103,8 @@ class EllipticalCNN(nn.Conv2d):
         linear_term = super(EllipticalCNN, self).forward(input)
         quadratic_term = self._quadratic.forward(input*input)
         a = update_curvature_multiplier(self)
-        fan_in, _ = _calculate_fan_in_and_fan_out(self.weight)
-        return -a * quadratic_term + a * math.sqrt(fan_in) + linear_term
+        gamma = 1
+        return -a * quadratic_term + a * gamma + linear_term
 
 class QuadraticCNN(EllipticalCNN):
 

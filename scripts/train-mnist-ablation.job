@@ -11,22 +11,34 @@ echo -n "Started: " && date
 out_dir=$1
 
 train() {
-    name=$1
-    second_param_onwards="${@:2}"
-    echo "Training $name"
-    python -u train.py mnist --n_epochs=20 --lr=0.001 --out_path=$out_dir/$name.pkl $second_param_onwards &> $out_dir/$name.log
+    attempt=$1
+    name=$2
+    mydir=$out_dir/$attempt
+    var_params="${@:3}"
+    echo "Training $name ($attempt)"
+    mkdir -p $mydir
+    python -u train.py mnist --n_epochs=20 --lr=0.001 --out_path=$mydir/$name.pkl $var_params &> $mydir/$name.log
 }
 
-# don't use "\" to put parameters on the next line, the method will ignore them...
-train relu --device=cuda:0 &
-train relog --device=cuda:1 --use_relog=True &
-wait
+train_one_attempt() {
+    # don't use "\" to put parameters on the next line, the method will ignore them...
+    (train $1 relu --device=cuda:0 ; \
+    train $1 relog-maxout_4 --device=cuda:0 --use_relog=True --use_maxout=max --max_folding_factor=4 ; \
+    train $1 relog-elliptical-maxout_4-bce-max_fit_l1 --device=cuda:0 --use_relog=True --use_elliptical=True --use_bce=True --use_maxout=max --max_folding_factor=4 --regularization=max-fit --bias_l1=0.1 --l1=0.1 ; \
+    train $1 relog-elliptical-bce-max_fit_l1-overlay --device=cuda:0 --use_relog=True --use_elliptical=True --use_bce=True --regularization=max-fit --bias_l1=0.1 --l1=0.1 --use_overlay=True) &
 
-train relog-maxout_4 --device=cuda:0 --use_relog=True --use_maxout=max --max_folding_factor=4 &
-train relog-minmaxout_2_4 --device=cuda:1 --use_relog=True --use_maxout=minmax --max_folding_factor=4 --min_folding_factor=2 &
-wait
+    (train $1 relog --device=cuda:1 --use_relog=True ; \
+    train $1 relog-minmaxout_2_4 --device=cuda:1 --use_relog=True --use_maxout=minmax --max_folding_factor=4 --min_folding_factor=2 ; \
+    train $1 relog-elliptical-maxout_4 --device=cuda:1 --use_relog=True --use_elliptical=True --use_maxout=max --max_folding_factor=4 ; \
+    train $1 relog-elliptical-maxout_4-bce-max_fit_l1-overlay --device=cuda:1 --use_relog=True --use_elliptical=True --use_bce=True --use_maxout=max --max_folding_factor=4 --regularization=max-fit --bias_l1=0.1 --l1=0.1 --use_overlay=True ; \
+    train $1 relog-elliptical-maxout_4-max_fit_l1 --device=cuda:1 --use_relog=True --use_elliptical=True --use_maxout=max --max_folding_factor=4 --regularization=max-fit --bias_l1=0.1 --l1=0.1) &
 
-train relog-elliptical-maxout_4 --device=cuda:1 --use_relog=True --use_elliptical=True --use_maxout=max --max_folding_factor=4 &
-wait
+    wait
+}
+
+for i in {0..9}
+do
+    train_one_attempt "attempt$i"
+done;
 
 echo -n "Finished: " && date

@@ -1356,3 +1356,60 @@ would take a few more days and I have a real deadline to chase. But I will
 update the discussions.
 
 Training is as unstable as before, so nothing changes.
+
+# Sun 5 Jan
+
+Looking at the paper again after a while and asking myself: why didn't I
+try binary cross entropy? Perhaps I was just trying to get _some_ results
+and then didn't have time to polish it.
+
+Quickly implemented training with BCE and get better results on MNIST.
+MSE mostly fails to train now, I wonder what changes in the code
+changes its behavior.
+
+# Mon 6 Jan
+
+Retrain some models and suddenly get different results. Digging up old
+source code to see how I got the old results and at the same time rerunning
+training to see if it is due to random fluctuation.
+
+The results in Table 1 (accuracy on noise) was last updated on 7 Nov 2019
+commit: `897ceb7`. The code isn't that different... Except the change in 
+fan-in calculation. The Elliptical+MaxOut model fails to train now while
+it does perfectly well before:
+
+    [minhle@int1 newlogic]$ tail -n 2 output/*/relu-elliptical-maxout.log
+    ==> output/subtractive-ablation-mnist-models.2019.bak/relu-elliptical-maxout.log <==
+    Epoch: 19 | train loss: 0.0789 | train acc: 0.97 | test acc: 0.92
+    Model saved to output/subtractive-ablation-mnist-models/relu-elliptical-maxout.pkl
+
+    ==> output/subtractive-ablation-mnist-models.2020-01-05/relu-elliptical-maxout.log <==
+    Epoch: 19 | train loss: 2.2902 | train acc: 0.11 | test acc: 0.11
+    Model saved to /nfs/home2/minhle/newlogic/output/subtractive-ablation-mnist-models/relu-elliptical-maxout.pkl
+
+and the ReLog+Ell.+MaxFit+MaxOut model gets much worse at rejecting noise:
+
+    before: 
+    relog-elliptical-maxout_4-max_fit_l1.pkl: 1.00 (std=0.00)
+    after:
+    relog-elliptical-maxout_4-max_fit_l1.pkl: 0.01 (std=0.01)
+
+It seems that I was lucky for implementing the fan-in incorrectly. 
+$\gamma$ was accidentally set to the number of input channels instead 
+of fan-in and it actually worked well for MNIST.
+
+Looking at results of different runs, fluctuation indeed plays a big role. 
+A model can go from 100% to 57% after retraining...
+Set $\gamma=1$ and retrain MNIST models. I will train them 5 times to
+get an estimate of the variation.
+
+Done 2 times now, the fluctuation is big but can't explain the difference
+between the MSE+Overlay results in the last table with newly obtained 
+BCE+Overlay results. Probably MSE ended up giving all low probabilities 
+last time, therefore got 100% correct on noise ==> It's important to make
+a new table that includes probabilities on true images and noise.
+
+TODO:
+
+- once MNIST models are trained, run evaluation on noise and finish table 1
+- once CIFAR models are trained, run attacks
