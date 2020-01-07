@@ -1,0 +1,33 @@
+#!/bin/bash
+#SBATCH -t 1-00:00:00
+#SBATCH -p gpu
+#SBATCH --export=NONE
+
+. scripts/init-cartesius.sh
+. venv/bin/activate
+
+echo -n "Started: " && date
+
+out_dir=$1
+
+train() {
+    name=$1
+    second_param_onwards="${@:2}"
+    echo "Training $name"
+    python -u train.py mnist --n_epochs=20 --lr=0.001 --out_path=$out_dir/$name.pkl $second_param_onwards &> $out_dir/$name.log
+}
+
+train_innately_local() {
+    train relog-elliptical-maxout_4-max_fit_l1-$1 --device=$2 --use_relog=True --use_elliptical=True --use_maxout=max --max_folding_factor=4 --regularization=max-fit --bias_l1=0.1 --l1=0.1
+}
+
+for i in {0..2}
+do
+    train_innately_local attempt$i-a cuda:0 &
+    train_innately_local attempt$i-b cuda:0 &
+    train_innately_local attempt$i-c cuda:1 &
+    train_innately_local attempt$i-d cuda:1 &
+    wait
+done;
+
+echo -n "Finished: " && date

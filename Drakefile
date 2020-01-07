@@ -19,6 +19,11 @@ output/subtractive-ablation-mnist-models <- train.py [-timecheck]
     sbatch scripts/train-mnist-subtractive-ablation.job $OUTPUT0
     echo "Jobs submitted, please wait for a few hours"
 
+output/innately-local-models <- train.py [-timecheck]
+    mkdir -p $OUTPUT0
+    sbatch scripts/train-mnist-innately-local.job $OUTPUT0
+    echo "Jobs submitted, please wait for a few hours"
+
 output/maxfit-sensitivity-mnist-models <- train.py [-timecheck]
     mkdir -p $OUTPUT0
     sbatch scripts/train-mnist-maxfit-sensitivity.job $OUTPUT0
