@@ -32,7 +32,7 @@ class ReLog(nn.Module):
     """
     __constants__ = []
 
-    def __init__(self, beta=10):
+    def __init__(self, beta=1):
         assert(beta >= 0)
         super(ReLog, self).__init__()
         self.beta = beta
