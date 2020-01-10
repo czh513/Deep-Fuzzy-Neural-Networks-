@@ -8,14 +8,17 @@ scripts and adapt them to your computing environment.
 
 ## MNIST experiments
 
-0. Code version: `192f3d5118f82982c7ae6e2561b6a4a1726a205a`
 1. Train models: `drake %mnist-models`
 2. Wait until all jobs finish and run evaluation: `drake %mnist-results`
 3. Continue at "Figures and tables" section
 
+For row "Innate" table 1:
+1. Checkout branch `reproduce-innately-local`
+2. Run `train-mnist-innately-local.job`
+3. Execute notebook `reporting/reproduce-innately-local.ipynb`
+
 ## CIFAR-10 experiments
 
-0. Code version: `3a5c7896ffa925f733ba107188e9df08b3b5fc6d` (later versions will work differently)
 1. Train models: `drake %cifar10-models`
 2. Wait until all jobs finish and run evaluation: `drake %cifar10-results`
 3. Continue at "Figures and tables" section

@@ -5,19 +5,9 @@
 
 . scripts/init-cartesius.sh
 . venv/bin/activate
+. scripts/cifar10-common.sh
 
 echo -n "Started: " && date
-
-out_dir=$1
-
-train() {
-    name=$1
-    second_param_onwards="${@:2}"
-    echo "Training $name"
-    python -u train.py cifar-10 --vgg_name=VGG11 --use_batchnorm=True --modification_start_layer=0 --n_epochs=80 --out_path=$out_dir/$name.pkl $second_param_onwards &> $out_dir/$name.log
-}
-
-. scripts/cifar10-common.sh
 
 # Notice: can't share this part with mnist because some params are different
 # Notice: don't use "\" to put parameters on the next line, the method will ignore them...

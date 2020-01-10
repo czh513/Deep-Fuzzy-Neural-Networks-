@@ -77,13 +77,14 @@ class Elliptical(nn.Linear):
         kwargs['bias'] = False
         self.multiplier = curvature_multiplier_start
         self._quadratic = AbsLinear(*args, **kwargs)
+        self.gamma = 1
 
     def forward(self, input):
         linear_term = super(Elliptical, self).forward(input)
         quadratic_term = self._quadratic.forward(input*input)
         a = update_curvature_multiplier(self)
-        gamma = 1
-        return -a * quadratic_term + a * gamma + linear_term
+        g = getattr(self, 'gamma', 1) # temp. fix
+        return -a * quadratic_term + a * g + linear_term
 
 class Quadratic(Elliptical):
 

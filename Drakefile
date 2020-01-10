@@ -1,11 +1,11 @@
 output/ablation-cifar10-models <- train.py [-timecheck]
     mkdir -p $OUTPUT0
-    sbatch scripts/train-cifar10-ablation.job $OUTPUT0 && echo "Job submitted, please wait for >1 day"
+    sbatch scripts/train-cifar10-ablation.job $OUTPUT0 
+    echo "Job submitted, please wait for >1 day"
 
 output/ablation-cifar10-models2 <- train.py [-timecheck]
     mkdir -p $OUTPUT0
     sbatch scripts/train-cifar10-ablation2.job $OUTPUT0 
-    sbatch scripts/train-cifar10-ablation3.job $OUTPUT0 
     echo "Job submitted, please wait for >1 day"
 
 output/ablation-cifar10-models4 <- train.py [-timecheck]
@@ -105,8 +105,8 @@ output/natural-cifar10-results2.json <- output/ablation-cifar10-models2
 %mnist-results <- output/natural-mnist-results.json, output/ablation-mnist-results.json, output/ablation-mnist-results2.json, output/ablation-mnist-results-spsa.json, output/natural-maxfit-sensitivity-mnist-results.json, output/maxfit-sensitivity-mnist-results-spsa.json
     echo "If you see this, your result files are there already"
 
-%cifar10-models <- output/ablation-cifar10-models, output/ablation-cifar10-models2
+%cifar10-models <- output/ablation-cifar10-models, output/ablation-cifar10-models2, output/ablation-cifar10-models4
     echo "If you see this, your model folders are not empty"
 
-%cifar10-results <- output/ablation-cifar10-results.json, output/ablation-cifar10-results2.json, output/natural-cifar10-results.json, output/natural-cifar10-results2.json
+%cifar10-results <- output/ablation-cifar10-results.json, output/ablation-cifar10-results2.json, output/ablation-cifar10-results4.json, output/natural-cifar10-results.json, output/natural-cifar10-results2.json, output/natural-cifar10-results4.json
     echo "If you see this, your result files are there already"

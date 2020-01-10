@@ -1409,7 +1409,41 @@ BCE+Overlay results. Probably MSE ended up giving all low probabilities
 last time, therefore got 100% correct on noise ==> It's important to make
 a new table that includes probabilities on true images and noise.
 
+# Wed 8 Jan 2020
+
+Managed to reproduce the innate results (see branch 
+`reproduce-innately-local`), I didn't deceive myself.
+
+Now retraining CIFAR models because I have changed $\gamma$.
+
+    [minhle@int2 newlogic]$ !sque
+    squeue | grep minh
+            7415292       gpu train-ci   minhle  R       3:40      1 gcn43
+
+Looks like it trains well. A net with 9 elliptical layers can still train
+and get 75% test acc. (the same as a regular ReLU). Now, I'll train the
+full ablation experiment:
+
+    [minhle@int1 newlogic]$ drake +=output/ablation-cifar10-models +=output/ablation-cifar10-models2 +=output/ablation-cifar10-models4
+    Submitted batch job 7415648
+    Submitted batch job 7415649
+    Submitted batch job 7415650
+
+Training 10 MNIST models with relu+bce+neg.example (for table 1):
+
+    [minhle@int1 newlogic]$ tail -f output/*mnist*/attempt*/relu-bce*.log
+    ==> output/ablation-mnist-models/attempt0/relu-bce.log <==
+    Epoch: 0 | batch: 0 | train acc: 0.06 (4 / 64)
+    Epoch: 0 | batch: 400 | train acc: 0.72 (18383 / 25664)
+
+    ==> output/ablation-mnist-models/attempt0/relu-bce-overlay.log <==
+    Epoch: 0 | batch: 0 | train acc: 0.09 (6 / 64)
+    Epoch: 0 | batch: 400 | train acc: 0.69 (17581 / 25664)
+
+
+
 TODO:
 
-- once MNIST models are trained, run evaluation on noise and finish table 1
+- re-evaluate CIFAR models on locality
+- re-evaluate BCE-trained MNIST models
 - once CIFAR models are trained, run attacks

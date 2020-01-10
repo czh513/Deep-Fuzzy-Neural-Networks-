@@ -5,37 +5,16 @@
 
 . scripts/init-cartesius.sh
 . venv/bin/activate
+. scripts/cifar10-common.sh
 
 echo -n "Started: " && date
 
-out_dir=$1
+(train relog-maxout-elliptical --device=cuda:0 $relog_conf $maxout_conf $elliptical_conf ; \
+ train relog-maxout-elliptical-maxfit-bce --device=cuda:0 $relog_conf $maxout_conf $elliptical_conf $maxfit_conf $bce_conf) &
 
-train() {
-    name=$1
-    second_param_onwards="${@:2}"
-    echo "Training $name"
-    # use this for testing: --vgg_name=VGG4 
-    python -u train.py cifar-10 --vgg_name=VGG11 --use_batchnorm=True --elliptical_stop=1 --modification_start_layer=0 --n_epochs=80 --out_path=$out_dir/$name.pkl $second_param_onwards &> $out_dir/$name.log
-}
-
-relog_conf="--use_relog=True --log_strength_start=-0.8 --log_strength_inc=0.0001 --log_strength_stop=1"
-elliptical_conf="--use_elliptical=True --elliptical_stop=1 --curvature_multiplier_start=-0.4 --curvature_multiplier_stop=1"
-maxout_conf="--use_maxout=max --max_folding_factor=4"
-minmaxout_conf="--use_maxout=minmax --min_folding_factor=2 --max_folding_factor=4"
-maxfit_conf="--regularization=max-fit --l1=1 --bias_l1=0.1 --regularization_start_epoch=0"
-bce_conf="--use_bce=True"
-
-(train relog-minmaxout-elliptical_stop1 --device=cuda:0 $relog_conf $minmaxout_conf $elliptical_conf ; \
- train relog-minmaxout-elliptical_stop1-maxfit --device=cuda:0 $relog_conf $minmaxout_conf $elliptical_conf $maxfit_conf ;\
- train relog-minmaxout-elliptical_stop1-maxfit-bce --device=cuda:0 $relog_conf $minmaxout_conf $elliptical_conf $maxfit_conf $bce_conf) &
-(train relog-maxout --device=cuda:1 $relog_conf $maxout_conf; \
- train relog-minmaxout --device=cuda:1 $relog_conf $minmaxout_conf; \
- train relog-minmaxout-elliptical_stop1-maxfit-bce-overlay --device=cuda:1 $relog_conf $minmaxout_conf $elliptical_conf $maxfit_conf $bce_conf --use_overlay=True)&
-wait
-
-(train relog-minmaxout-elliptical_stop1-maxfit --device=cuda:0 $relog_conf $minmaxout_conf $elliptical_conf $maxfit_conf ;\
- train relog-minmaxout-elliptical_stop1-maxfit-bce --device=cuda:0 $relog_conf $minmaxout_conf $elliptical_conf $maxfit_conf $bce_conf) &
-(train relog-minmaxout-elliptical_stop1-maxfit-bce-overlay --device=cuda:1 $relog_conf $minmaxout_conf $elliptical_conf $maxfit_conf $bce_conf --use_overlay=True) &
+(train relog-maxout-elliptical-maxfit --device=cuda:1 $relog_conf $maxout_conf $elliptical_conf $maxfit_conf ; \
+ train relog-maxout-elliptical-maxfit-bce-overlay --device=cuda:1 $relog_conf $maxout_conf $elliptical_conf $maxfit_conf $bce_conf --use_overlay=True) &
+ 
 wait
 
 echo -n "Finished: " && date
