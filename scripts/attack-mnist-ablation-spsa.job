@@ -16,7 +16,7 @@ for model_path in $(ls $inp_dir/*.pkl)
 do
     attack=SPSA
     python -u adversarial.py --dataset=mnist --attack=$attack --report_interval=10 \
-            --model_path=$model_path --json_out_path=$out_path --nb_iter=50 --num_batches=15 &
+            --model_path=$model_path --json_out_path=$out_path --nb_iter=50 --num_batches=10 &
     ((counter++))
     if [ $counter == 4 ]; then
         wait

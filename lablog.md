@@ -1440,10 +1440,44 @@ Training 10 MNIST models with relu+bce+neg.example (for table 1):
     Epoch: 0 | batch: 0 | train acc: 0.09 (6 / 64)
     Epoch: 0 | batch: 400 | train acc: 0.69 (17581 / 25664)
 
+# Thu 9 Jan 2020
 
+It turns out the good result of ReLU+MSE+Overlay is due to low probabilities
+everywhere (including true images):
 
-TODO:
+![](images/relu_mse_overlay.png)
 
-- re-evaluate CIFAR models on locality
-- re-evaluate BCE-trained MNIST models
-- once CIFAR models are trained, run attacks
+So, the story about two routes doesn't hold. The new results are correct:
+the new architecture is essential to learn local representations.
+
+# Sat 11 Jan 2020
+
+Re-evaluated MNIST and CIFAR models on locality, adapted the 
+corresponding section to new results.
+
+Running the following evaluations:
+
+    [minhle@int1 newlogic]$ ls output | grep json
+    ablation-cifar10-results.json
+    ablation-mnist-results.json
+    ablation-mnist-results-spsa.json
+    natural-mnist-results.json
+
+# Sun 12 Jan 2020
+
+MNIST evaluations (except minmaxout) and some CIFAR ones are done. 
+Running the rest:
+
+    [minhle@int1 newlogic]$ squeue | grep minh
+            7422038    normal attack-c   minhle  R   13:19:37      1 tcn796
+            7422528    normal attack-c   minhle  R      12:44      1 tcn981
+            7422529    normal attack-c   minhle  R      12:44      1 tcn992
+            7422530    normal attack-c   minhle  R      12:44      1 tcn1124
+            7422531    normal attack-c   minhle  R      12:44      1 tcn1145
+            7422535    normal attack-m   minhle  R       2:10      1 tcn1219
+
+TODO: 
+
+1. adapt discussions
+2. convert paper to IJCAI format
+3. check reference format

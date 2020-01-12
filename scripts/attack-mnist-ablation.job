@@ -9,9 +9,9 @@
 inp_dir=$1
 out_path=$2
 
-for model_name in relog-elliptical-maxout_4-max_fit_l1 relog-elliptical-maxout_4 relog-maxout_4 relog relu
+for model_name in $(ls $inp_dir | grep pkl)
 do
-    model_path=$inp_dir/$model_name.pkl
+    model_path=$inp_dir/$model_name
     for attack in FGM_inf FGM_L2 CW BIM
     do
         python -u adversarial.py --dataset=mnist --attack=$attack \
