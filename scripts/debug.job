@@ -18,11 +18,12 @@ train() {
 }
 
 # trying faster training
-elliptical_conf="--use_elliptical=True --elliptical_stop=1 --curvature_multiplier_start=0.5 --curvature_multiplier_stop=1 --curvature_multiplier_inc=0.001"
+elliptical_conf="--use_elliptical=True --elliptical_stop=1 --curvature_multiplier_start=0 --curvature_multiplier_stop=1 --curvature_multiplier_inc=0.001"
 relog_conf="--use_relog=True --log_strength_start=-1 --log_strength_inc=0.001"
 maxout_conf="--use_maxout=minmax --min_folding_factor=2 --max_folding_factor=4"
 regularization_conf="--regularization=max-fit --l1=0.001 --bias_l1=0.0001 --regularization_start_epoch=2"
 train debugging-relog-elliptical-maxout-fast_training-no_batchnorm --device=cuda:0 $elliptical_conf $relog_conf $maxout_conf &
+train debugging-relog-elliptical-maxout-fast_training-no_batchnorm_qscale --device=cuda:1 $elliptical_conf $relog_conf $maxout_conf --quadratic_grad_scale=0.1 &
 # train debugging-relog-elliptical-maxout-maxfit_l1-fast_training-no_batchnorm --device=cuda:1 $elliptical_conf $relog_conf $maxout_conf $regularization_conf &
 # wait
 

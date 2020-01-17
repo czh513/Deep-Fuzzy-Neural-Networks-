@@ -131,7 +131,8 @@ class TrainingService_MNIST(TrainingService):
             'use_mse': False, 'use_bce': False, 'lr': 0.001, 'out_path': None, 'train_batch_size': 64, 
             'regularization': None, 'regularization_start_epoch': 2, 'l1': 0, 'l2': 0, 
             'bias_l1': 0, 'use_scrambling': False, 'use_overlay': False,
-            'use_elliptical': False, 'use_quadratic': False, 'mse_weighted': False,
+            'use_elliptical': False, 'use_quadratic': False, 'quadratic_grad_scale': 1,
+            'mse_weighted': False,
         }
 
         model_kwargs = {k:v for k, v in kwargs.items() if k in models.CNN.config_defaults}
@@ -160,6 +161,9 @@ class TrainingService_MNIST(TrainingService):
                 optimizer.zero_grad()           # clear gradients for this training step
                 loss, _, _, _ = self.compute_loss(epoch, cnn, train_x, train_y, output, conf)
                 loss.backward()                 # backpropagation, compute gradients
+                with torch.no_grad(): # don't train quadratic weights
+                    for qw in cnn.quadratic_weights():
+                        qw.grad *= conf['quadratic_grad_scale']
                 optimizer.step()                # apply gradients
 
                 _, pred_y = torch.max(output, dim=1)
@@ -235,6 +239,9 @@ class TrainingService_CIFAR10(TrainingService):
                 outputs, _ = net(inputs)
                 loss, main_loss, reg_loss, _ = self.compute_loss(epoch, net, inputs, targets, outputs, conf)
                 loss.backward()
+                with torch.no_grad(): # don't train quadratic weights
+                    for qw in net.quadratic_weights():
+                        qw.grad *= conf['quadratic_grad_scale']
                 self.optimizer.step()
 
                 train_loss += main_loss.item()
@@ -301,7 +308,7 @@ class TrainingService_CIFAR10(TrainingService):
             'use_mse': False, 'use_bce': False, 'lr': 0.01, 'out_path': None, 'train_batch_size': 128, 
             'regularization': None, 'regularization_start_epoch': 10, 'l1': 0, 'l2': 0,
             'bias_l1': 0, 'use_scrambling': False, 'use_overlay': False,
-            'use_elliptical': False, 'use_quadratic': False, 
+            'use_elliptical': False, 'use_quadratic': False, 'quadratic_grad_scale': 1,
             'log_strength_inc': 0.001, 'log_strength_start': 0.001, 'log_strength_stop': 1,
             'batch_size_multiplier': 1, 'report_interval': 150,
             'curvature_multiplier_inc': 1e-4, 'curvature_multiplier_start': 0,
