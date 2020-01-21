@@ -1476,8 +1476,17 @@ Running the rest:
             7422531    normal attack-c   minhle  R      12:44      1 tcn1145
             7422535    normal attack-m   minhle  R       2:10      1 tcn1219
 
-TODO: 
+# Sat 18 Jan 
 
-1. adapt discussions
-2. convert paper to IJCAI format
-3. check reference format
+Converted paper to IJCAI format
+
+Tried a few new settings for CIFAR-10: relog=2, maxout=2, didn't get 
+better results.
+
+Adapted discussions.
+
+# Tue 21 Jan
+
+Wrote conclusions.
+
+Fitted references into one page, fixed reference format
